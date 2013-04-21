@@ -239,7 +239,6 @@ describe('mapToDb', function() {
   })
 })
 
-
 describe('mapFromDb', function() {
   it('should return null when passed null', function() {
     var table = dynamoTable('name')
@@ -276,5 +275,129 @@ describe('mapFromDb', function() {
   it('should exclude mapped properties returning undefined', function() {
     var table = dynamoTable('name', {mappings: {a: {from: function() { return undefined }}}})
     table.mapFromDb({a: {N: '1'}, b: {S: 'a'}}).should.eql({b: 'a'})
+  })
+})
+
+describe('resolveKey', function() {
+  it('should resolve as "id" when no keys specified', function() {
+    var table = dynamoTable('name')
+    table.resolveKey(23).should.eql({id: {N: '23'}})
+  })
+
+  it('should resolve as single key when specified', function() {
+    var table = dynamoTable('name', {key: 'name'})
+    table.resolveKey('john').should.eql({name: {S: 'john'}})
+  })
+
+  it('should resolve as compound key when specified', function() {
+    var table = dynamoTable('name', {key: ['id', 'name']})
+    table.resolveKey([23, 'john']).should.eql({id: {N: '23'}, name: {S: 'john'}})
+    table.resolveKey(23, 'john').should.eql({id: {N: '23'}, name: {S: 'john'}})
+  })
+
+  it('should resolve when object specified', function() {
+    var table = dynamoTable('name')
+    table.resolveKey({id: 23}).should.eql({id: {N: '23'}})
+    table.resolveKey({id: 23, name: 'john'}).should.eql({id: {N: '23'}, name: {S: 'john'}})
+  })
+
+  it('should work with Buffer keys', function() {
+    var table = dynamoTable('name')
+    table.resolveKey(new Buffer([1, 2, 3, 4])).should.eql({id: {B: 'AQIDBA=='}})
+  })
+})
+
+describe('get', function() {
+  it('should call with default options', function(done) {
+    var table, client = {
+      request: function(target, options, cb) {
+        target.should.equal('GetItem')
+        options.TableName.should.equal('name')
+        options.Key.should.eql({id: {N: '23'}})
+        should.not.exist(options.AttributesToGet)
+        should.not.exist(options.ConsistentRead)
+        should.not.exist(options.ReturnConsumedCapacity)
+        process.nextTick(function() {
+          cb(null, {Item: {id: {N: '23'}, name: {S: 'john'}}})
+        })
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.get(23, function(err, jsObj) {
+      jsObj.should.eql({id: 23, name: 'john'})
+      done()
+    })
+  })
+
+  it('should use options if passed in', function(done) {
+    var table, client = {
+      request: function(target, options, cb) {
+        target.should.equal('GetItem')
+        options.TableName.should.equal('other')
+        options.Key.should.eql({id: {N: '100'}})
+        options.AttributesToGet.should.eql(['id'])
+        should.not.exist(options.ConsistentRead)
+        should.not.exist(options.ReturnConsumedCapacity)
+        process.nextTick(function() {
+          cb(null, {Item: {id: {N: '100'}}})
+        })
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.get(23, {
+      TableName: 'other',
+      Key: {id: {N: '100'}},
+      AttributesToGet: ['id'],
+    }, function(err, jsObj) {
+      jsObj.should.eql({id: 100})
+      done()
+    })
+  })
+
+  it('should callback with error if client error', function(done) {
+    var table, client = {
+      request: function(target, options, cb) {
+        process.nextTick(function() {
+          cb(new Error('whoops'))
+        })
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.get(23, function(err) {
+      err.should.be.an.instanceOf(Error)
+      err.should.match(/whoops/)
+      done()
+    })
+  })
+
+  it('should accept different types of keys', function() {
+    var table, client = {
+      request: function(target, options) {
+        options.Key.should.eql({id: {N: '23'}, name: {S: 'john'}})
+      }
+    }
+    table = dynamoTable('name', {client: client, key: ['id', 'name']})
+    table.get([23, 'john'])
+    table.get({id: 23, name: 'john'})
+  })
+
+  it('should convert options to AttributesToGet if array', function() {
+    var table, client = {
+      request: function(target, options) {
+        options.AttributesToGet.should.eql(['id', 'name'])
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.get(23, ['id', 'name'])
+  })
+
+  it('should convert options to AttributesToGet if string', function() {
+    var table, client = {
+      request: function(target, options) {
+        options.AttributesToGet.should.eql(['id'])
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.get(23, 'id')
   })
 })

@@ -131,6 +131,21 @@ DynamoTable.prototype.mapFromDb = function(dbItem) {
   return this.postFrom(jsObj)
 }
 
+DynamoTable.prototype.resolveKey = function(key) {
+  var self = this
+  if (arguments.length > 1) key = [].slice.call(arguments)
+  if (typeof key !== 'object' || Buffer.isBuffer(key)) key = [key]
+  if (Array.isArray(key)) {
+    return key.reduce(function(dbKey, val, ix) {
+      dbKey[self.key[ix]] = self.mapAttrToDb(val, self.key[ix])
+      return dbKey
+    }, {})
+  }
+  return Object.keys(key).reduce(function(dbKey, attr) {
+    dbKey[attr] = self.mapAttrToDb(key[attr], attr)
+    return dbKey
+  }, {})
+}
 
 DynamoTable.prototype._isEmpty = function(attr) {
   return attr == null || attr.S === '' || attr.N === '' || attr.B === '' ||
@@ -145,11 +160,37 @@ DynamoTable.prototype._getKeyType = function(attr) {
     case 'B':
       return type
     case 'json':
-    case 'datetime':
+    case 'isodate':
       return 'S'
     case 'bignum':
+    case 'timestamp':
       return 'N'
   }
   throw new Error('Unsupported key type (' + type + ') for attr ' + attr)
 }
+
+
+// get(23, cb)
+// get({id: 23}, ['id', 'name'], cb)
+// get(23, ['id', 'name'], cb)
+// get([23, 'john'], {AttributesToGet: ['id', 'name']}, cb)
+
+DynamoTable.prototype.get = function(key, options, cb) {
+  var self = this
+  if (typeof options === 'function') {
+    cb = options
+    options = {}
+  } else if (options == null) {
+    options = {}
+  }
+  if (Array.isArray(options)) options = {AttributesToGet: options}
+  if (typeof options === 'string') options = {AttributesToGet: [options]}
+  options.TableName = options.TableName || this.name
+  options.Key = options.Key || this.resolveKey(key)
+  this.client.request('GetItem', options, function(err, data) {
+    if (err) return cb(err)
+    cb(null, self.mapFromDb(data.Item))
+  })
+}
+
 
