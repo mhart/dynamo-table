@@ -193,4 +193,87 @@ DynamoTable.prototype.get = function(key, options, cb) {
   })
 }
 
+DynamoTable.prototype.query = function(conditions, options, cb) {
+  if (typeof options === 'function') {
+    cb = options
+    options = {}
+  } else if (options == null) {
+    options = {}
+  }
+  if (Array.isArray(options)) options = {AttributesToGet: options}
+  if (typeof options === 'string') options = {AttributesToGet: [options]}
+  options.TableName = options.TableName || this.name
+  options.KeyConditions = options.KeyConditions || this.conditions(conditions)
+  this._listRequest('Query', options, cb)
+}
 
+DynamoTable.prototype._listRequest = function(operation, items, options, cb) {
+  var self = this
+  if (typeof options === 'function') {
+    cb = options
+    options = items
+    items = []
+  }
+  this.client.request(operation, options, function(err, data) {
+    if (err) return cb(err)
+    if (options.Count) return cb(null, data.Count)
+    items = items.concat(data.Items.map(function(item) { return self.mapFromDb(item) }))
+    if (data.LastEvaluatedKey != null && (!options.Limit || options.Limit !== data.Count)) {
+      options.ExclusiveStartKey = data.LastEvaluatedKey
+      return self._listRequest(operation, items, options, cb)
+    }
+    cb(null, items)
+  })
+}
+
+DynamoTable.prototype.conditions = function(conditionExprObj) {
+  var self = this
+  return Object.keys(conditionExprObj).reduce(function(condObj, attr) {
+    condObj[attr] = self.condition(attr, conditionExprObj[attr])
+    return condObj
+  }, {})
+}
+
+DynamoTable.prototype.condition = function(key, conditionExpr) {
+  var self = this, type = typeof conditionExpr, comparison, attrVals
+  if (conditionExpr === null) {
+    comparison = 'NULL'
+  } else if (conditionExpr === 'notNull' || conditionExpr === 'NOT_NULL') {
+    comparison = 'NOT_NULL'
+  } else if (type === 'string' || type === 'number' || Buffer.isBuffer(conditionExpr)) {
+    comparison = 'EQ'
+    attrVals = [conditionExpr]
+  } else if (Array.isArray(conditionExpr)) {
+    comparison = 'IN'
+    attrVals = conditionExpr
+  } else {
+    [comparison] = Object.keys(conditionExpr)
+    attrVals = conditionExpr[comparison]
+    if (!Array.isArray(attrVals)) attrVals = [attrVals]
+    comparison = this.comparison(comparison)
+  }
+  cond = {ComparisonOperator: comparison}
+  if (attrVals != null)
+    cond.AttributeValueList = attrVals.map(function(val) { return self.mapAttrToDb(val, key) })
+  return cond
+}
+
+DynamoTable.prototype.comparison = function(comparison) {
+  switch (comparison) {
+    case '=': return 'EQ'
+    case '==': return 'EQ'
+    case '!=': return 'NE'
+    case '<=': return 'LE'
+    case '<': return 'LT'
+    case '>': return 'GT'
+    case '>=': return 'GE'
+    case '>=<=': return 'BETWEEN'
+    case 'beginsWith':
+    case 'startsWith':
+      return 'BEGINS_WITH'
+    case 'notContains':
+    case 'doesNotContain':
+      return 'NOT_CONTAINS'
+  }
+  return comparison.toUpperCase()
+}

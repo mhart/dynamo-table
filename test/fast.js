@@ -401,3 +401,31 @@ describe('get', function() {
     table.get(23, 'id')
   })
 })
+
+describe('query', function() {
+  it('should call with default options', function(done) {
+    var table, client = {
+      request: function(target, options, cb) {
+        target.should.equal('Query')
+        options.TableName.should.equal('name')
+        options.KeyConditions.should.eql({id: {ComparisonOperator: 'EQ', AttributeValueList: [{N: '23'}]}})
+        should.not.exist(options.AttributesToGet)
+        should.not.exist(options.ConsistentRead)
+        should.not.exist(options.ReturnConsumedCapacity)
+        should.not.exist(options.ExclusiveStartKey)
+        should.not.exist(options.IndexName)
+        should.not.exist(options.Limit)
+        should.not.exist(options.ScanIndexForward)
+        should.not.exist(options.Select)
+        process.nextTick(function() {
+          cb(null, {Items: [{id: {N: '23'}, name: {S: 'john'}}]})
+        })
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.query({id: 23}, function(err, items) {
+      items.should.eql([{id: 23, name: 'john'}])
+      done()
+    })
+  })
+})
