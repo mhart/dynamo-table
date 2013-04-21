@@ -1,0 +1,27 @@
+{
+  "name": "dynamo-table",
+  "version": "0.0.0",
+  "description": "Maps JS objects and queries to DynamoDB tables",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mhart/dynamo-table.git"
+  },
+  "keywords": [
+    "dynamo",
+    "dynamodb",
+    "mapping"
+  ],
+  "author": "Michael Hart <michael.hart.au@gmail.com> (http://github.com/mhart)",
+  "license": "MIT",
+  "devDependencies": {
+    "should": "~1.2.2",
+    "mocha": "~1.9.0"
+  },
+  "optionalDependencies": {
+    "dynamo-client": "~1.0.0"
+  }
+}
