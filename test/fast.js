@@ -641,3 +641,141 @@ describe('listTables', function() {
   })
 })
 
+describe('increment', function() {
+  it('should call with default options', function(done) {
+    var table, client = {
+      request: function(target, options, cb) {
+        target.should.equal('UpdateItem')
+        options.TableName.should.equal('name')
+        options.Key.should.eql({id: {N: '23'}})
+        options.AttributeUpdates.should.eql({count: {Action: 'ADD', Value: {N: '1'}}})
+        options.ReturnValues.should.equal('UPDATED_NEW')
+        should.not.exist(options.Expected)
+        should.not.exist(options.ReturnConsumedCapacity)
+        should.not.exist(options.ReturnItemCollectionMetrics)
+        process.nextTick(function() {
+          cb(null, {Attributes: {count: {N: '1'}}})
+        })
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.increment(23, 'count', function(err, newVal) {
+      if (err) return done(err)
+      newVal.should.equal(1)
+      done()
+    })
+  })
+
+  it('should allow specific amounts', function(done) {
+    var table, client = {
+      request: function(target, options, cb) {
+        target.should.equal('UpdateItem')
+        options.TableName.should.equal('name')
+        options.Key.should.eql({id: {N: '23'}})
+        options.AttributeUpdates.should.eql({count: {Action: 'ADD', Value: {N: '10'}}})
+        options.ReturnValues.should.equal('UPDATED_NEW')
+        should.not.exist(options.Expected)
+        should.not.exist(options.ReturnConsumedCapacity)
+        should.not.exist(options.ReturnItemCollectionMetrics)
+        process.nextTick(function() {
+          cb(null, {Attributes: {count: {N: '11'}}})
+        })
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.increment(23, 'count', 10, function(err, newVal) {
+      if (err) return done(err)
+      newVal.should.equal(11)
+      done()
+    })
+  })
+})
+
+describe('nextId', function() {
+  it('should call with default options', function(done) {
+    var table, client = {
+      request: function(target, options, cb) {
+        target.should.equal('UpdateItem')
+        options.TableName.should.equal('name')
+        options.Key.should.eql({id: {S: '0'}})
+        options.AttributeUpdates.should.eql({lastId: {Action: 'ADD', Value: {N: '1'}}})
+        options.ReturnValues.should.equal('UPDATED_NEW')
+        should.not.exist(options.Expected)
+        should.not.exist(options.ReturnConsumedCapacity)
+        should.not.exist(options.ReturnItemCollectionMetrics)
+        process.nextTick(function() {
+          cb(null, {Attributes: {lastId: {N: '1'}}})
+        })
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.nextId(function(err, newVal) {
+      if (err) return done(err)
+      newVal.should.equal(1)
+      done()
+    })
+  })
+
+  it('should use specified key types', function(done) {
+    var table, client = {
+      request: function(target, options, cb) {
+        target.should.equal('UpdateItem')
+        options.TableName.should.equal('name')
+        options.Key.should.eql({id: {B: '0000'}, name: {S: '0'}})
+        options.AttributeUpdates.should.eql({lastId: {Action: 'ADD', Value: {N: '1'}}})
+        options.ReturnValues.should.equal('UPDATED_NEW')
+        should.not.exist(options.Expected)
+        should.not.exist(options.ReturnConsumedCapacity)
+        should.not.exist(options.ReturnItemCollectionMetrics)
+        process.nextTick(function() {
+          cb(null, {Attributes: {lastId: {N: '1'}}})
+        })
+      }
+    }
+    table = dynamoTable('name', {client: client, key: ['id', 'name'], mappings: {id: 'B', name: 'S'}})
+    table.nextId(function(err, newVal) {
+      if (err) return done(err)
+      newVal.should.equal(1)
+      done()
+    })
+  })
+})
+
+
+describe('initId', function() {
+  it('should call with default options', function(done) {
+    var table, client = {
+      request: function(target, options, cb) {
+        target.should.equal('UpdateItem')
+        options.TableName.should.equal('name')
+        options.Key.should.eql({id: {S: '0'}})
+        options.AttributeUpdates.should.eql({lastId: {Value: {N: '0'}}})
+        should.not.exist(options.Expected)
+        should.not.exist(options.ReturnConsumedCapacity)
+        should.not.exist(options.ReturnItemCollectionMetrics)
+        should.not.exist(options.ReturnValues)
+        process.nextTick(cb)
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.initId(done)
+  })
+
+  it('should use explicit value if passed in', function(done) {
+    var table, client = {
+      request: function(target, options, cb) {
+        target.should.equal('UpdateItem')
+        options.TableName.should.equal('name')
+        options.Key.should.eql({id: {S: '0'}})
+        options.AttributeUpdates.should.eql({lastId: {Value: {N: '100'}}})
+        should.not.exist(options.Expected)
+        should.not.exist(options.ReturnConsumedCapacity)
+        should.not.exist(options.ReturnItemCollectionMetrics)
+        should.not.exist(options.ReturnValues)
+        process.nextTick(cb)
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.initId(100, done)
+  })
+})

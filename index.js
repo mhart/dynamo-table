@@ -155,7 +155,7 @@ DynamoTable.prototype._isEmpty = function(attr) {
 }
 
 DynamoTable.prototype._defaultValue = function(attr) {
-  var type = _getKeyType(attr)
+  var type = this._getKeyType(attr)
   switch (type) {
     case 'S': return '0'
     case 'N': return 0
@@ -325,6 +325,39 @@ DynamoTable.prototype.listTables = function(options, cb) {
     if (err) return cb(err)
     cb(null, data.TableNames)
   })
+}
+
+DynamoTable.prototype.increment = function(key, attr, incrAmt, options, cb) {
+  var self = this, actions
+  if (typeof options === 'function') { cb = options; options = {} }
+  else if (typeof incrAmt === 'function') { cb = incrAmt; incrAmt = 1 }
+  if (incrAmt == null) incrAmt = 1
+  options = options || {}
+  options.ReturnValues = options.ReturnValues || 'UPDATED_NEW'
+  actions = {add: {}}
+  actions.add[attr] = incrAmt
+  this.update(key, actions, options, function(err, data) {
+    if (err) return cb(err)
+    var newVal = (data.Attributes != null ? data.Attributes[attr] : null)
+    if (newVal == null) return cb()
+    cb(null, self.mapAttrFromDb(newVal, attr))
+  })
+}
+
+DynamoTable.prototype.nextId = function(incrAmt, options, cb) {
+  if (typeof options === 'function') { cb = options; options = {} }
+  else if (typeof incrAmt === 'function') { cb = incrAmt; incrAmt = 1 }
+  if (incrAmt == null) incrAmt = 1
+  var key = this.key.map(this._defaultValue.bind(this))
+  this.increment(key, 'lastId', incrAmt, options, cb)
+}
+
+DynamoTable.prototype.initId = function(val, options, cb) {
+  if (typeof options === 'function') { cb = options; options = {} }
+  else if (typeof val === 'function') { cb = val; val = 0 }
+  if (val == null) val = 0
+  var key = this.key.map(this._defaultValue.bind(this))
+  this.update(key, {put: {lastId: val}}, options, cb)
 }
 
 DynamoTable.prototype._listRequest = function(operation, items, options, cb) {
