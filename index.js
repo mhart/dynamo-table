@@ -124,7 +124,7 @@ DynamoTable.prototype.mapFromDb = function(dbItem) {
   if (dbItem != null && jsObj != null) {
     Object.keys(dbItem).forEach(function(key) {
       var jsAttr = self.mapAttrFromDb(dbItem[key], key, dbItem)
-      if (jsAttr !== undefined)
+      if (typeof jsAttr !== 'undefined')
         jsObj[key] = jsAttr
     })
   }
@@ -152,6 +152,15 @@ DynamoTable.prototype._isEmpty = function(attr) {
     attr.SS === '[]' || attr.NS === '[]' || attr.BS === '[]'
 }
 
+DynamoTable.prototype._defaultValue = function(attr) {
+  var type = _getKeyType(attr)
+  switch (type) {
+    case 'S': return '0'
+    case 'N': return 0
+    case 'B': return new Buffer('0000', 'base64')
+  }
+}
+
 DynamoTable.prototype._getKeyType = function(attr) {
   var type = this.mappings[attr] || 'S'
   switch (type) {
@@ -177,15 +186,8 @@ DynamoTable.prototype._getKeyType = function(attr) {
 
 DynamoTable.prototype.get = function(key, options, cb) {
   var self = this
-  if (typeof options === 'function') {
-    cb = options
-    options = {}
-  } else if (options == null) {
-    options = {}
-  }
-  if (Array.isArray(options)) options = {AttributesToGet: options}
-  if (typeof options === 'string') options = {AttributesToGet: [options]}
-  options.TableName = options.TableName || this.name
+  if (typeof options === 'function') { cb = options; options = {} }
+  options = this._getDefaultOptions(options)
   options.Key = options.Key || this.resolveKey(key)
   this.client.request('GetItem', options, function(err, data) {
     if (err) return cb(err)
@@ -193,30 +195,86 @@ DynamoTable.prototype.get = function(key, options, cb) {
   })
 }
 
-DynamoTable.prototype.query = function(conditions, options, cb) {
-  if (typeof options === 'function') {
-    cb = options
-    options = {}
-  } else if (options == null) {
-    options = {}
-  }
-  if (Array.isArray(options)) options = {AttributesToGet: options}
-  if (typeof options === 'string') options = {AttributesToGet: [options]}
+DynamoTable.prototype.put = function(jsObj, options, cb) {
+  if (typeof options === 'function') { cb = options; options = {} }
   options.TableName = options.TableName || this.name
+  options.Item = options.Item || this.mapToDb(jsObj)
+  this.client.request('PutItem', options, cb)
+}
+
+DynamoTable.prototype.delete = function(key, options, cb) {
+  if (typeof options === 'function') { cb = options; options = {} }
+  options.TableName = options.TableName || this.name
+  options.Key = options.Key || this.resolveKey(key)
+  this.client.request('DeleteItem', options, cb)
+}
+
+DynamoTable.prototype.query = function(conditions, options, cb) {
+  if (typeof options === 'function') { cb = options; options = {} }
+  options = this._getDefaultOptions(options)
   options.KeyConditions = options.KeyConditions || this.conditions(conditions)
   this._listRequest('Query', options, cb)
 }
 
+DynamoTable.prototype.scan = function(conditions, options, cb) {
+  var self = this
+  if (typeof options === 'function') { cb = options; options = {} }
+  else if (typeof conditions === 'function') { cb = conditions; conditions = null }
+  options = this._getDefaultOptions(options)
+
+  // filter out the default key
+  if (this.useNextId) {
+    if (conditions == null) conditions = {}
+    this.key.forEach(function(attr) {
+      if (typeof conditions[attr] === 'undefined')
+        conditions[attr] = {'!=': self._defaultValue(attr)}
+    })
+  }
+  if (conditions != null) options.ScanFilter = options.ScanFilter || this.conditions(conditions)
+  this._listRequest('Scan', options, cb)
+}
+
+DynamoTable.prototype.describeTable = function(options, cb) {
+  if (typeof options === 'function') { cb = options; options = {} }
+  options.TableName = options.TableName || this.name
+  this.client.request('DescribeTable', options, function(err, data) {
+    if (err) return cb(err)
+    cb(null, data.Table)
+  })
+}
+
+DynamoTable.prototype.updateTable = function(readCapacity, writeCapacity, options, cb) {
+  if (typeof options === 'function') { cb = options; options = {} }
+  options.TableName = options.TableName || this.name
+  options.ProvisionedThroughput = options.ProvisionedThroughput || {
+    ReadCapacityUnits: readCapacity,
+    WriteCapacityUnits: writeCapacity,
+  }
+  this.client.request('UpdateTable', options, cb)
+}
+ 
+DynamoTable.prototype.deleteTable = function(options, cb) {
+  if (typeof options === 'function') { cb = options; options = {} }
+  options.TableName = options.TableName || this.name
+  this.client.request('DeleteTable', options, cb)
+}
+
+// TODO: Support ExclusiveStartTableName/LastEvaluatedTableName
+DynamoTable.prototype.listTables = function(options, cb) {
+  if (typeof options === 'function') { cb = options; options = {} }
+  this.client.request('ListTables', options, function(err, data) {
+    if (err) return cb(err)
+    cb(null, data.TableNames)
+  })
+}
+
 DynamoTable.prototype._listRequest = function(operation, items, options, cb) {
   var self = this
-  if (typeof options === 'function') {
-    cb = options
-    options = items
-    items = []
-  }
+  if (typeof options === 'function') { cb = options; options = items; items = [] }
   this.client.request(operation, options, function(err, data) {
     if (err) return cb(err)
     if (options.Count) return cb(null, data.Count)
+
     items = items.concat(data.Items.map(function(item) { return self.mapFromDb(item) }))
     if (data.LastEvaluatedKey != null && (!options.Limit || options.Limit !== data.Count)) {
       options.ExclusiveStartKey = data.LastEvaluatedKey
@@ -277,3 +335,15 @@ DynamoTable.prototype.comparison = function(comparison) {
   }
   return comparison.toUpperCase()
 }
+
+DynamoTable.prototype._getDefaultOptions = function(options) {
+  if (options == null)
+    options = {}
+  else if (Array.isArray(options))
+    options = {AttributesToGet: options}
+  else if (typeof options === 'string')
+    options = {AttributesToGet: [options]}
+  options.TableName = options.TableName || this.name
+  return options
+}
+

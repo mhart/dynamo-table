@@ -324,6 +324,7 @@ describe('get', function() {
     }
     table = dynamoTable('name', {client: client})
     table.get(23, function(err, jsObj) {
+      if (err) return done(err)
       jsObj.should.eql({id: 23, name: 'john'})
       done()
     })
@@ -349,6 +350,7 @@ describe('get', function() {
       Key: {id: {N: '100'}},
       AttributesToGet: ['id'],
     }, function(err, jsObj) {
+      if (err) return done(err)
       jsObj.should.eql({id: 100})
       done()
     })
@@ -402,6 +404,44 @@ describe('get', function() {
   })
 })
 
+describe('put', function() {
+  it('should call with default options', function(done) {
+    var table, client = {
+      request: function(target, options, cb) {
+        target.should.equal('PutItem')
+        options.TableName.should.equal('name')
+        options.Item.should.eql({id: {N: '23'}, name: {S: 'john'}})
+        should.not.exist(options.Expected)
+        should.not.exist(options.ReturnConsumedCapacity)
+        should.not.exist(options.ReturnItemCollectionMetrics)
+        should.not.exist(options.ReturnValues)
+        process.nextTick(cb)
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.put({id: 23, name: 'john'}, done)
+  })
+})
+
+describe('delete', function() {
+  it('should call with default options', function(done) {
+    var table, client = {
+      request: function(target, options, cb) {
+        target.should.equal('DeleteItem')
+        options.TableName.should.equal('name')
+        options.Key.should.eql({id: {N: '23'}})
+        should.not.exist(options.Expected)
+        should.not.exist(options.ReturnConsumedCapacity)
+        should.not.exist(options.ReturnItemCollectionMetrics)
+        should.not.exist(options.ReturnValues)
+        process.nextTick(cb)
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.delete(23, done)
+  })
+})
+
 describe('query', function() {
   it('should call with default options', function(done) {
     var table, client = {
@@ -424,8 +464,107 @@ describe('query', function() {
     }
     table = dynamoTable('name', {client: client})
     table.query({id: 23}, function(err, items) {
+      if (err) return done(err)
       items.should.eql([{id: 23, name: 'john'}])
       done()
     })
   })
 })
+
+describe('scan', function() {
+  it('should call with default options', function(done) {
+    var table, client = {
+      request: function(target, options, cb) {
+        target.should.equal('Scan')
+        options.TableName.should.equal('name')
+        should.not.exist(options.ScanFilter)
+        should.not.exist(options.AttributesToGet)
+        should.not.exist(options.ReturnConsumedCapacity)
+        should.not.exist(options.ExclusiveStartKey)
+        should.not.exist(options.Limit)
+        should.not.exist(options.Select)
+        process.nextTick(function() {
+          cb(null, {Items: [{id: {N: '23'}, name: {S: 'john'}}, {id: {N: '24'}, name: {S: 'jane'}}]})
+        })
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.scan(function(err, items) {
+      if (err) return done(err)
+      items.should.eql([{id: 23, name: 'john'}, {id: 24, name: 'jane'}])
+      done()
+    })
+  })
+})
+
+describe('describeTable', function() {
+  it('should call with default options', function(done) {
+    var table, client = {
+      request: function(target, options, cb) {
+        target.should.equal('DescribeTable')
+        options.TableName.should.equal('name')
+        process.nextTick(function() {
+          cb(null, {Table: {AttributeDefinitions:[]}})
+        })
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.describeTable(function(err, table) {
+      if (err) return done(err)
+      table.should.eql({AttributeDefinitions:[]})
+      done()
+    })
+  })
+})
+
+describe('updateTable', function() {
+  it('should call with default options', function(done) {
+    var table, client = {
+      request: function(target, options, cb) {
+        target.should.equal('UpdateTable')
+        options.TableName.should.equal('name')
+        options.ProvisionedThroughput.should.eql({ReadCapacityUnits: 10, WriteCapacityUnits: 20})
+        process.nextTick(cb)
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.updateTable(10, 20, done)
+  })
+})
+
+describe('deleteTable', function() {
+  it('should call with default options', function(done) {
+    var table, client = {
+      request: function(target, options, cb) {
+        target.should.equal('DeleteTable')
+        options.TableName.should.equal('name')
+        process.nextTick(cb)
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.deleteTable(done)
+  })
+})
+
+describe('listTables', function() {
+  it('should call with default options', function(done) {
+    var table, client = {
+      request: function(target, options, cb) {
+        target.should.equal('ListTables')
+        should.not.exist(options.TableName)
+        should.not.exist(options.ExclusiveStartTableName)
+        should.not.exist(options.Limit)
+        process.nextTick(function() {
+          cb(null, {TableNames: ['Orders', 'Items']})
+        })
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.listTables(function(err, tables) {
+      if (err) return done(err)
+      tables.should.eql(['Orders', 'Items'])
+      done()
+    })
+  })
+})
+
