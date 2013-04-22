@@ -89,8 +89,10 @@ DynamoTable.prototype.mapAttrFromDb = function(val, key, dbItem) {
       case 'mapS':
       case 'mapN':
       case 'mapB':
-        return (val.SS || val.NS || val.BS)
-          .reduce(function(obj, val) { obj[val] = 1; return obj }, {})
+        return (val.SS || val.NS || val.BS).reduce(function(mapObj, val) {
+          mapObj[val] = 1
+          return mapObj
+        }, {})
     }
   }
   if (val.S != null) {
@@ -207,6 +209,63 @@ DynamoTable.prototype.delete = function(key, options, cb) {
   options.TableName = options.TableName || this.name
   options.Key = options.Key || this.resolveKey(key)
   this.client.request('DeleteItem', options, cb)
+}
+
+DynamoTable.prototype.update = function(key, actions, options, cb) {
+  var self = this, attrUpdates
+  if (typeof options === 'function') { cb = options; options = {} }
+  else if (typeof actions === 'function') { cb = actions; actions = key; key = null }
+  options = this._getDefaultOptions(options)
+
+  // If key is null, assume actions has a full object to put so clone it (without keys)
+  if (key == null) {
+    key = this.key.map(function(attr) { return actions[attr] })
+    actions = {put: Object.keys(actions).reduce(function(attrsObj, attr) {
+      if (!~self.key.indexOf(attr)) attrsObj[attr] = actions[attr]
+      return attrsObj
+    }, {})}
+  }
+
+  // If we have some attributes that are not actions (put, add, delete), then throw
+  if (Object.keys(actions).some(function(attr) { return !~['put', 'add', 'delete'].indexOf(attr) }))
+    throw new Error('actions must only contain put/add/delete attributes')
+
+  options.Key = options.Key || this.resolveKey(key)
+  attrUpdates = options.AttributeUpdates = options.AttributeUpdates || {}
+
+  if (actions.put != null) {
+    Object.keys(actions.put).forEach(function(attr) {
+      attrUpdates[attr] = attrUpdates[attr] || {Value: self.mapAttrToDb(actions.put[attr], attr)}
+      if (self._isEmpty(attrUpdates[attr].Value)) {
+        // "empty" attributes should actually be deleted
+        attrUpdates[attr].Action = 'DELETE'
+        delete attrUpdates[attr].Value
+      }
+    })
+  }
+
+  if (actions.add != null) {
+    Object.keys(actions.add).forEach(function(attr) {
+      attrUpdates[attr] = attrUpdates[attr] ||
+        {Action: 'ADD', Value: self.mapAttrToDb(actions.add[attr], attr)}
+    })
+  }
+
+  if (actions.delete != null) {
+    if (!Array.isArray(actions.delete)) actions.delete = [actions.delete]
+    actions.delete.forEach(function(attr) {
+      if (typeof attr === 'string') {
+        attrUpdates[attr] = attrUpdates[attr] || {Action: 'DELETE'}
+      } else {
+        Object.keys(attr).forEach(function(setKey) {
+          attrUpdates[setKey] = attrUpdates[setKey] ||
+            {Action: 'DELETE', Value: self.mapAttrToDb(attr[setKey], setKey)}
+        })
+      }
+    })
+  }
+
+  this.client.request('UpdateItem', options, cb)
 }
 
 DynamoTable.prototype.query = function(conditions, options, cb) {

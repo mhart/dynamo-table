@@ -442,6 +442,79 @@ describe('delete', function() {
   })
 })
 
+describe('update', function() {
+  it('should call with default options', function(done) {
+    var table, client = {
+      request: function(target, options, cb) {
+        target.should.equal('UpdateItem')
+        options.TableName.should.equal('name')
+        options.Key.should.eql({id: {N: '23'}})
+        options.AttributeUpdates.should.eql({
+          name: {Value: {S: 'john'}},
+          age: {Value: {N: '24'}},
+          address: {Action: 'DELETE'},
+        })
+        should.not.exist(options.Expected)
+        should.not.exist(options.ReturnConsumedCapacity)
+        should.not.exist(options.ReturnItemCollectionMetrics)
+        should.not.exist(options.ReturnValues)
+        process.nextTick(cb)
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.update({id: 23, name: 'john', age: 24, address: null}, done)
+  })
+
+  it('should throw if bad actions are used', function() {
+    var table = dynamoTable('name')
+    table.update.bind(table, 23, {delete: 'a', id: 34}).should.throw()
+  })
+
+  it('should assign mixed actions', function(done) {
+    var table, client = {
+      request: function(target, options, cb) {
+        target.should.equal('UpdateItem')
+        options.TableName.should.equal('name')
+        options.Key.should.eql({id: {N: '23'}})
+        options.AttributeUpdates.should.eql({
+          name: {Value: {S: 'john'}},
+          age: {Action: 'ADD', Value: {N: '24'}},
+          address: {Action: 'DELETE'},
+          parent: {Action: 'DELETE'},
+        })
+        should.not.exist(options.Expected)
+        should.not.exist(options.ReturnConsumedCapacity)
+        should.not.exist(options.ReturnItemCollectionMetrics)
+        should.not.exist(options.ReturnValues)
+        process.nextTick(cb)
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.update(23, {put: {name: 'john', address: null}, add: {age: 24}, delete: 'parent'}, done)
+  })
+
+  it('should delete from sets', function(done) {
+    var table, client = {
+      request: function(target, options, cb) {
+        target.should.equal('UpdateItem')
+        options.TableName.should.equal('name')
+        options.Key.should.eql({id: {N: '23'}})
+        options.AttributeUpdates.should.eql({
+          parent: {Action: 'DELETE'},
+          clientIds: {Action: 'DELETE', Value: {NS: ['1', '2', '3']}},
+        })
+        should.not.exist(options.Expected)
+        should.not.exist(options.ReturnConsumedCapacity)
+        should.not.exist(options.ReturnItemCollectionMetrics)
+        should.not.exist(options.ReturnValues)
+        process.nextTick(cb)
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.update(23, {delete: ['parent', {clientIds: [1, 2, 3]}]}, done)
+  })
+})
+
 describe('query', function() {
   it('should call with default options', function(done) {
     var table, client = {
