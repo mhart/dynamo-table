@@ -77,7 +77,7 @@ Corresponds to [BatchGetItem](http://docs.aws.amazon.com/amazondynamodb/latest/A
 
 Corresponds to [BatchWriteItem](http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html)
 
-### createTable(readCapacity, writeCapacity, [options], callback)
+### createTable(readCapacity, writeCapacity, [indexes], [options], callback)
 
 Corresponds to [CreateTable](http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_CreateTable.html)
 
