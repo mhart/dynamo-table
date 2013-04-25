@@ -380,7 +380,7 @@ DynamoTable.prototype.batchGet = function(keys, options, tables, cb) {
 
 // http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
 DynamoTable.MAX_WRITE = 25
-DynamoTable.prototype.batchGet = function(puts, deletes, tables, cb) {
+DynamoTable.prototype.batchWrite = function(puts, deletes, tables, cb) {
   if (!cb) { cb = tables; tables = [] }
   if (!cb) { cb = deletes; deletes = [] }
   if (typeof cb !== 'function') throw new Error('Last parameter must be a callback function')

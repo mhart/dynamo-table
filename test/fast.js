@@ -571,6 +571,79 @@ describe('scan', function() {
   })
 })
 
+describe('batchGet', function() {
+  it('should call with default options', function(done) {
+    var table, client = {
+      request: function(target, options, cb) {
+        target.should.equal('BatchGetItem')
+        options.RequestItems.should.eql({name: {Keys: [{id: {N: '1'}}, {id: {N: '2'}}, {id: {N: '3'}}]}})
+        should.not.exist(options.ReturnConsumedCapacity)
+        process.nextTick(cb.bind(null, null, {Responses: {
+          name: {Items: [{id: {N: '1'}, n: {S: 'a'}}, {id: {N: '2'}, n: {S: 'b'}}, {id: {N: '3'}, n: {S: 'c'}}]}
+        }}))
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.batchGet([1, 2, 3], function(err, items) {
+      if (err) return done(err)
+      items.should.eql([{id: 1, n: 'a'}, {id: 2, n: 'b'}, {id: 3, n: 'c'}])
+      done()
+    })
+  })
+
+  it('should only return specified attributes', function(done) {
+    var table, client = {
+      request: function(target, options, cb) {
+        target.should.equal('BatchGetItem')
+        options.RequestItems.should.eql({name: {
+          Keys: [{id: {N: '1'}}, {id: {N: '2'}}, {id: {N: '3'}}],
+          AttributesToGet: ['id'],
+        }})
+        process.nextTick(cb.bind(null, null, {Responses: {
+          name: {Items: [{id: {N: '1'}}, {id: {N: '2'}}, {id: {N: '3'}}]}
+        }}))
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.batchGet([1, 2, 3], 'id', function(err, items) {
+      if (err) return done(err)
+      items.should.eql([{id: 1}, {id: 2}, {id: 3}])
+      done()
+    })
+  })
+
+  it('should return multiple tables', function(done) {
+    var table, client = {
+      request: function(target, options, cb) {
+        target.should.equal('BatchGetItem')
+        options.RequestItems.should.eql({
+          table1: {
+            Keys: [{id: {N: '1'}}, {id: {N: '2'}}, {id: {N: '3'}}],
+            AttributesToGet: ['id'],
+          },
+          table2: {
+            Keys: [{id: {N: '4'}}, {id: {N: '5'}}],
+          },
+        })
+        process.nextTick(cb.bind(null, null, {Responses: {
+          table1: {Items: [{id: {N: '1'}}, {id: {N: '2'}}, {id: {N: '3'}}]},
+          table2: {Items: [{id: {N: '4'}, n: {S: 'a'}}, {id: {N: '5'}, n: {S: 'b'}}]},
+        }}))
+      }
+    }
+    table = dynamoTable('table1', {client: client})
+    table2 = dynamoTable('table2')
+    table.batchGet([1, 2, 3], 'id', [{table: table2, keys: [4, 5]}], function(err, items) {
+      if (err) return done(err)
+      items.should.eql({
+        table1: [{id: 1}, {id: 2}, {id: 3}],
+        table2: [{id: 4, n: 'a'}, {id: 5, n: 'b'}]
+      })
+      done()
+    })
+  })
+})
+
 describe('createTable', function() {
   it('should call with default options', function(done) {
     var table, client = {
