@@ -380,23 +380,23 @@ DynamoTable.prototype.batchGet = function(keys, options, tables, cb) {
 
 // http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
 DynamoTable.MAX_WRITE = 25
-DynamoTable.prototype.batchWrite = function(puts, deletes, tables, cb) {
+DynamoTable.prototype.batchWrite = function(operations, tables, cb) {
   if (!cb) { cb = tables; tables = [] }
-  if (!cb) { cb = deletes; deletes = [] }
   if (typeof cb !== 'function') throw new Error('Last parameter must be a callback function')
   var self = this,
       requests = [],
       allOperations, i, j, requestItems, operation
 
-  if ((puts && puts.length) || (deletes && deletes.length))
-    tables.push({table: this, puts: puts, deletes: deletes})
+  if (operations && operations.length)
+    tables.push({table: this, operations: operations})
 
   allOperations = tables.map(function(tableObj) {
-    var table = tableObj.table, puts = tableObj.puts || [], deletes = tableObj.deletes || [], ops
-    ops = puts.map(function(jsObj) {
+    var table = tableObj.table, operations = tableObj.operations || [], ops
+    if (Array.isArray(operations)) operations = {puts: operations, deletes: []}
+    ops = operations.puts.map(function(jsObj) {
       return {PutRequest: {Item: table.mapToDb(jsObj)}, _table: table.name}
     })
-    return ops.concat(deletes.map(function(key) {
+    return ops.concat(operations.deletes.map(function(key) {
       return {DeleteRequest: {Key: table.resolveKey(key)}, _table: table.name}
     }))
   })

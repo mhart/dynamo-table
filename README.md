@@ -73,7 +73,7 @@ Corresponds to [Scan](http://docs.aws.amazon.com/amazondynamodb/latest/APIRefere
 
 Corresponds to [BatchGetItem](http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html)
 
-### batchWrite([puts], [deletes], [tables], callback)
+### batchWrite([operations], [tables], callback)
 
 Corresponds to [BatchWriteItem](http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html)
 

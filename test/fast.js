@@ -613,7 +613,7 @@ describe('batchGet', function() {
   })
 
   it('should return multiple tables', function(done) {
-    var table, client = {
+    var table, table2, client = {
       request: function(target, options, cb) {
         target.should.equal('BatchGetItem')
         options.RequestItems.should.eql({
@@ -641,6 +641,42 @@ describe('batchGet', function() {
       })
       done()
     })
+  })
+})
+
+describe('batchWrite', function() {
+  it('should call with default options', function(done) {
+    var table, client = {
+      request: function(target, options, cb) {
+        target.should.equal('BatchWriteItem')
+        options.RequestItems.should.eql({name: [
+          {PutRequest: {Item: {id: {N: '1'}, n: {S: 'a'}}}},
+          {PutRequest: {Item: {id: {N: '2'}, n: {S: 'b'}}}},
+          {PutRequest: {Item: {id: {N: '3'}, n: {S: 'c'}}}},
+        ]})
+        should.not.exist(options.ReturnConsumedCapacity)
+        process.nextTick(cb.bind(null, null, {}))
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.batchWrite([{id: 1, n: 'a'}, {id: 2, n: 'b'}, {id: 3, n: 'c'}], done)
+  })
+
+  it('should process deletes', function(done) {
+    var table, client = {
+      request: function(target, options, cb) {
+        target.should.equal('BatchWriteItem')
+        options.RequestItems.should.eql({name: [
+          {PutRequest: {Item: {id: {N: '1'}, n: {S: 'a'}}}},
+          {DeleteRequest: {Key: {id: {N: '2'}}}},
+          {DeleteRequest: {Key: {id: {N: '3'}}}},
+        ]})
+        should.not.exist(options.ReturnConsumedCapacity)
+        process.nextTick(cb.bind(null, null, {}))
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.batchWrite({puts: [{id: 1, n: 'a'}], deletes: [2, 3]}, done)
   })
 })
 
