@@ -7,7 +7,9 @@ before(function() {
   process.env.AWS_ACCESS_KEY_ID = 'a'
 })
 
+
 describe('constructor', function() {
+
   it('should throw if no name', function() {
     dynamoTable.bind().should.throw()
     dynamoTable.bind(null, '').should.throw()
@@ -35,7 +37,9 @@ describe('constructor', function() {
   })
 })
 
+
 describe('mapAttrToDb', function() {
+
   it('should guess default types', function() {
     var table = dynamoTable('name')
     table.mapAttrToDb('hello').should.eql({S: 'hello'})
@@ -133,7 +137,9 @@ describe('mapAttrToDb', function() {
   })
 })
 
+
 describe('mapAttrFromDb', function() {
+
   it('should use default mappings', function() {
     var table = dynamoTable('name')
     table.mapAttrFromDb({S: 'hello'}).should.equal('hello')
@@ -220,7 +226,9 @@ describe('mapAttrFromDb', function() {
   })
 })
 
+
 describe('mapToDb', function() {
+
   it('should return null when passed null', function() {
     var table = dynamoTable('name')
     should.strictEqual(table.mapToDb(null), null)
@@ -253,7 +261,9 @@ describe('mapToDb', function() {
   })
 })
 
+
 describe('mapFromDb', function() {
+
   it('should return null when passed null', function() {
     var table = dynamoTable('name')
     should.strictEqual(table.mapFromDb(null), null)
@@ -292,7 +302,9 @@ describe('mapFromDb', function() {
   })
 })
 
+
 describe('resolveKey', function() {
+
   it('should resolve as "id" when no keys specified', function() {
     var table = dynamoTable('name')
     table.resolveKey(23).should.eql({id: {N: '23'}})
@@ -321,7 +333,9 @@ describe('resolveKey', function() {
   })
 })
 
+
 describe('get', function() {
+
   it('should call with default options', function(done) {
     var table, client = {
       request: function(target, options, cb) {
@@ -417,7 +431,9 @@ describe('get', function() {
   })
 })
 
+
 describe('put', function() {
+
   it('should call with default options', function(done) {
     var table, client = {
       request: function(target, options, cb) {
@@ -436,7 +452,9 @@ describe('put', function() {
   })
 })
 
+
 describe('delete', function() {
+
   it('should call with default options', function(done) {
     var table, client = {
       request: function(target, options, cb) {
@@ -455,7 +473,9 @@ describe('delete', function() {
   })
 })
 
+
 describe('update', function() {
+
   it('should call with default options', function(done) {
     var table, client = {
       request: function(target, options, cb) {
@@ -516,7 +536,9 @@ describe('update', function() {
   })
 })
 
+
 describe('query', function() {
+
   it('should call with default options', function(done) {
     var table, client = {
       request: function(target, options, cb) {
@@ -543,9 +565,46 @@ describe('query', function() {
       done()
     })
   })
+
+  it('should call multiple times if LastEvaluatedKey', function(done) {
+    var table, call = 0, client = {
+      request: function(target, options, cb) {
+        options.KeyConditions.should.eql({
+          id: {ComparisonOperator: 'EQ', AttributeValueList: [{N: '23'}]},
+          name: {ComparisonOperator: 'GT', AttributeValueList: [{S: 'a'}]},
+        })
+        switch (call++) {
+          case 0:
+            should.not.exist(options.ExclusiveStartKey)
+            return process.nextTick(function() {
+              cb(null, {Items: [{id: {N: '23'}, name: {S: 'b'}}], LastEvaluatedKey: {id: {N: '23'}}})
+            })
+          case 1:
+            options.ExclusiveStartKey.should.eql({id: {N: '23'}})
+            return process.nextTick(function() {
+              cb(null, {Items: [{id: {N: '24'}, name: {S: 'c'}}], LastEvaluatedKey: {id: {N: '24'}}})
+            })
+          case 2:
+            options.ExclusiveStartKey.should.eql({id: {N: '24'}})
+            return process.nextTick(function() {
+              cb(null, {Items: [{id: {N: '25'}, name: {S: 'd'}}]})
+            })
+        }
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.query({id: 23, name: {'>': 'a'}}, function(err, items) {
+      if (err) return done(err)
+      items.should.eql([{id: 23, name: 'b'}, {id: 24, name: 'c'}, {id: 25, name: 'd'}])
+      done()
+    })
+  })
+
 })
 
+
 describe('scan', function() {
+
   it('should call with default options', function(done) {
     var table, client = {
       request: function(target, options, cb) {
@@ -569,9 +628,45 @@ describe('scan', function() {
       done()
     })
   })
+
+  it('should call multiple times if LastEvaluatedKey', function(done) {
+    var table, call = 0, client = {
+      request: function(target, options, cb) {
+        options.ScanFilter.should.eql({
+          id: {ComparisonOperator: 'EQ', AttributeValueList: [{N: '23'}]},
+          name: {ComparisonOperator: 'GT', AttributeValueList: [{S: 'a'}]},
+        })
+        switch (call++) {
+          case 0:
+            should.not.exist(options.ExclusiveStartKey)
+            return process.nextTick(function() {
+              cb(null, {Items: [{id: {N: '23'}, name: {S: 'b'}}], LastEvaluatedKey: {id: {N: '23'}}})
+            })
+          case 1:
+            options.ExclusiveStartKey.should.eql({id: {N: '23'}})
+            return process.nextTick(function() {
+              cb(null, {Items: [{id: {N: '24'}, name: {S: 'c'}}], LastEvaluatedKey: {id: {N: '24'}}})
+            })
+          case 2:
+            options.ExclusiveStartKey.should.eql({id: {N: '24'}})
+            return process.nextTick(function() {
+              cb(null, {Items: [{id: {N: '25'}, name: {S: 'd'}}]})
+            })
+        }
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.scan({id: 23, name: {'>': 'a'}}, function(err, items) {
+      if (err) return done(err)
+      items.should.eql([{id: 23, name: 'b'}, {id: 24, name: 'c'}, {id: 25, name: 'd'}])
+      done()
+    })
+  })
 })
 
+
 describe('batchGet', function() {
+
   it('should call with default options', function(done) {
     var table, client = {
       request: function(target, options, cb) {
@@ -642,9 +737,49 @@ describe('batchGet', function() {
       done()
     })
   })
+
+  it('should call multiple times if UnprocessedKeys', function(done) {
+    var table, call = 0, client = {
+      request: function(target, options, cb) {
+        switch (call++) {
+          case 0:
+            options.RequestItems.should.eql({name: {Keys: [{id: {N: '1'}}, {id: {N: '2'}}, {id: {N: '3'}}]}})
+            return process.nextTick(function() {
+              cb(null, {
+                Responses: {name: {Items: [{id: {N: '1'}, n: {S: 'a'}}]}},
+                UnprocessedKeys: {name: {Keys: [{id: {N: '2'}}, {id: {N: '3'}}]}},
+              })
+            })
+          case 1:
+            options.RequestItems.should.eql({name: {Keys: [{id: {N: '2'}}, {id: {N: '3'}}]}})
+            return process.nextTick(function() {
+              cb(null, {
+                Responses: {name: {Items: [{id: {N: '2'}, n: {S: 'b'}}]}},
+                UnprocessedKeys: {name: {Keys: [{id: {N: '3'}}]}},
+              })
+            })
+          case 2:
+            options.RequestItems.should.eql({name: {Keys: [{id: {N: '3'}}]}})
+            return process.nextTick(function() {
+              cb(null, {
+                Responses: {name: {Items: [{id: {N: '3'}, n: {S: 'c'}}]}},
+              })
+            })
+        }
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.batchGet([1, 2, 3], function(err, items) {
+      if (err) return done(err)
+      items.should.eql([{id: 1, n: 'a'}, {id: 2, n: 'b'}, {id: 3, n: 'c'}])
+      done()
+    })
+  })
 })
 
+
 describe('batchWrite', function() {
+
   it('should call with default options', function(done) {
     var table, client = {
       request: function(target, options, cb) {
@@ -678,9 +813,65 @@ describe('batchWrite', function() {
     table = dynamoTable('name', {client: client})
     table.batchWrite({puts: [{id: 1, n: 'a'}], deletes: [2, 3]}, done)
   })
+
+  it('should process multiple tables', function(done) {
+    var table, table2, client = {
+      request: function(target, options, cb) {
+        target.should.equal('BatchWriteItem')
+        options.RequestItems.should.eql({
+          table1: [{PutRequest: {Item: {id: {N: '1'}, n: {S: 'a'}}}}],
+          table2: [{PutRequest: {Item: {id: {N: '2'}, n: {S: 'b'}}}}],
+        })
+        process.nextTick(cb.bind(null, null, {}))
+      }
+    }
+    table = dynamoTable('table1', {client: client})
+    table2 = dynamoTable('table2')
+    table.batchWrite([{id: 1, n: 'a'}], [{table: table2, operations: [{id: 2, n: 'b'}]}], done)
+  })
+
+  it('should call multiple times if UnprocessedKeys', function(done) {
+    var table, call = 0, client = {
+      request: function(target, options, cb) {
+        switch (call++) {
+          case 0:
+            options.RequestItems.should.eql({name: [
+              {PutRequest: {Item: {id: {N: '1'}, n: {S: 'a'}}}},
+              {PutRequest: {Item: {id: {N: '2'}, n: {S: 'b'}}}},
+              {PutRequest: {Item: {id: {N: '3'}, n: {S: 'c'}}}},
+            ]})
+            return process.nextTick(function() {
+              cb(null, {UnprocessedItems: {name: [
+                {PutRequest: {Item: {id: {N: '2'}, n: {S: 'b'}}}},
+                {PutRequest: {Item: {id: {N: '3'}, n: {S: 'c'}}}},
+              ]}})
+            })
+          case 1:
+            options.RequestItems.should.eql({name: [
+              {PutRequest: {Item: {id: {N: '2'}, n: {S: 'b'}}}},
+              {PutRequest: {Item: {id: {N: '3'}, n: {S: 'c'}}}},
+            ]})
+            return process.nextTick(function() {
+              cb(null, {UnprocessedItems: {name: [
+                {PutRequest: {Item: {id: {N: '3'}, n: {S: 'c'}}}},
+              ]}})
+            })
+          case 2:
+            options.RequestItems.should.eql({name: [
+              {PutRequest: {Item: {id: {N: '3'}, n: {S: 'c'}}}},
+            ]})
+            return process.nextTick(cb.bind(null, null, {}))
+        }
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.batchWrite([{id: 1, n: 'a'}, {id: 2, n: 'b'}, {id: 3, n: 'c'}], done)
+  })
 })
 
+
 describe('createTable', function() {
+
   it('should call with default options', function(done) {
     var table, client = {
       request: function(target, options, cb) {
@@ -940,7 +1131,7 @@ describe('createTable', function() {
         process.nextTick(cb)
       }
     }
-    table = dynamoTable('name', {client: client, keyTypes: {dob: 'timestamp'}})
+    table = dynamoTable('name', {client: client, key: 'id', keyTypes: {dob: 'timestamp'}})
     table.createTable(1, 1, {dobIndex: 'dob'}, done)
   })
 
@@ -989,7 +1180,9 @@ describe('createTable', function() {
   })
 })
 
+
 describe('describeTable', function() {
+
   it('should call with default options', function(done) {
     var table, client = {
       request: function(target, options, cb) {
@@ -1007,7 +1200,9 @@ describe('describeTable', function() {
   })
 })
 
+
 describe('updateTable', function() {
+
   it('should call with default options', function(done) {
     var table, client = {
       request: function(target, options, cb) {
@@ -1022,7 +1217,9 @@ describe('updateTable', function() {
   })
 })
 
+
 describe('deleteTable', function() {
+
   it('should call with default options', function(done) {
     var table, client = {
       request: function(target, options, cb) {
@@ -1036,7 +1233,9 @@ describe('deleteTable', function() {
   })
 })
 
+
 describe('listTables', function() {
+
   it('should call with default options', function(done) {
     var table, client = {
       request: function(target, options, cb) {
@@ -1056,7 +1255,9 @@ describe('listTables', function() {
   })
 })
 
+
 describe('increment', function() {
+
   it('should call with default options', function(done) {
     var table, client = {
       request: function(target, options, cb) {
@@ -1099,7 +1300,9 @@ describe('increment', function() {
   })
 })
 
+
 describe('nextId', function() {
+
   it('should call with default options', function(done) {
     var table, client = {
       request: function(target, options, cb) {
@@ -1137,6 +1340,7 @@ describe('nextId', function() {
 
 
 describe('initId', function() {
+
   it('should call with default options', function(done) {
     var table, client = {
       request: function(target, options, cb) {

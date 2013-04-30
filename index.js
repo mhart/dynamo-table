@@ -22,7 +22,7 @@ function DynamoTable(name, options) {
     this.client = dynamo.createClient(options.region)
   }
   this.mappings = options.mappings || {}
-  this.key = options.key || Object.keys(this.mappings).slice(0, 2)
+  this.key = options.key || Object.keys(options.keyTypes || this.mappings).slice(0, 2)
   if (!Array.isArray(this.key)) this.key = [this.key]
   if (!this.key.length) this.key = ['id']
   this.keyTypes = options.keyTypes || {}
@@ -319,7 +319,7 @@ DynamoTable.prototype.batchGet = function(keys, options, tables, cb) {
       allKeys, i, j, key, requestItems, requestItem, opt
 
   if (keys && keys.length) {
-    tables.push({table: this, keys: keys, options: options})
+    tables.unshift({table: this, keys: keys, options: options})
     onlyThis = tables.length === 1
   }
   allKeys = tables.map(function(tableObj) {
@@ -388,7 +388,7 @@ DynamoTable.prototype.batchWrite = function(operations, tables, cb) {
       allOperations, i, j, requestItems, operation
 
   if (operations && operations.length)
-    tables.push({table: this, operations: operations})
+    tables.unshift({table: this, operations: operations})
 
   allOperations = tables.map(function(tableObj) {
     var table = tableObj.table, operations = tableObj.operations || [], ops
