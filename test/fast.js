@@ -595,6 +595,7 @@ describe('query', function() {
     table = dynamoTable('name', {client: client})
     table.query({id: 23, name: {'>': 'a'}}, function(err, items) {
       if (err) return done(err)
+      call.should.equal(3)
       items.should.eql([{id: 23, name: 'b'}, {id: 24, name: 'c'}, {id: 25, name: 'd'}])
       done()
     })
@@ -658,6 +659,7 @@ describe('scan', function() {
     table = dynamoTable('name', {client: client})
     table.scan({id: 23, name: {'>': 'a'}}, function(err, items) {
       if (err) return done(err)
+      call.should.equal(3)
       items.should.eql([{id: 23, name: 'b'}, {id: 24, name: 'c'}, {id: 25, name: 'd'}])
       done()
     })
@@ -771,6 +773,7 @@ describe('batchGet', function() {
     table = dynamoTable('name', {client: client})
     table.batchGet([1, 2, 3], function(err, items) {
       if (err) return done(err)
+      call.should.equal(3)
       items.should.eql([{id: 1, n: 'a'}, {id: 2, n: 'b'}, {id: 3, n: 'c'}])
       done()
     })
@@ -865,7 +868,11 @@ describe('batchWrite', function() {
       }
     }
     table = dynamoTable('name', {client: client})
-    table.batchWrite([{id: 1, n: 'a'}, {id: 2, n: 'b'}, {id: 3, n: 'c'}], done)
+    table.batchWrite([{id: 1, n: 'a'}, {id: 2, n: 'b'}, {id: 3, n: 'c'}], function(err) {
+      if (err) return done(err)
+      call.should.equal(3)
+      done()
+    })
   })
 })
 
