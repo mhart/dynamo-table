@@ -1,5 +1,4 @@
-var async = require('async'),
-    dynamo
+var dynamo
 
 try {
   dynamo = require('dynamo-client')
@@ -330,8 +329,8 @@ DynamoTable.prototype.batchGet = function(keys, options, tables, cb) {
   var self = this,
       onlyThis = false,
       tablesByName = {},
-      requests = [],
-      allKeys, i, j, key, requestItems, requestItem, opt
+      merged = {},
+      allKeys, numRequests, i, j, key, requestItems, requestItem, opt
 
   if (keys && keys.length) {
     tables.unshift({table: this, keys: keys, options: options})
@@ -352,6 +351,7 @@ DynamoTable.prototype.batchGet = function(keys, options, tables, cb) {
     })
   })
   allKeys = [].concat.apply([], allKeys)
+  numRequests = Math.ceil(allKeys.length / DynamoTable.MAX_GET)
 
   for (i = 0; i < allKeys.length; i += DynamoTable.MAX_GET) {
     requestItems = {}
@@ -365,7 +365,7 @@ DynamoTable.prototype.batchGet = function(keys, options, tables, cb) {
       delete key._table
       delete key._options
     }
-    requests.push(requestItems)
+    batchRequest(requestItems, checkDone)
   }
 
   function batchRequest(requestItems, results, cb) {
@@ -382,15 +382,13 @@ DynamoTable.prototype.batchGet = function(keys, options, tables, cb) {
     })
   }
 
-  async.map(requests, batchRequest, function(err, results) {
+  function checkDone(err, results) {
     if (err) return cb(err)
-    var mergedResults = results.reduce(function(merged, result) {
-      for (var name in result)
-        merged[name] = (merged[name] || []).concat(result[name])
-      return merged
-    })
-    cb(null, onlyThis ? mergedResults[self.name] : mergedResults)
-  })
+    for (var name in results)
+      merged[name] = (merged[name] || []).concat(results[name])
+    if (!--numRequests)
+      cb(null, onlyThis ? merged[self.name] : merged)
+  }
 }
 
 // http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
@@ -399,8 +397,7 @@ DynamoTable.prototype.batchWrite = function(operations, tables, cb) {
   if (!cb) { cb = tables; tables = [] }
   if (typeof cb !== 'function') throw new Error('Last parameter must be a callback function')
   var self = this,
-      requests = [],
-      allOperations, i, j, requestItems, operation
+      allOperations, numRequests, i, j, requestItems, operation
 
   if (operations && Object.keys(operations).length)
     tables.unshift({table: this, operations: operations})
@@ -416,6 +413,7 @@ DynamoTable.prototype.batchWrite = function(operations, tables, cb) {
     }))
   })
   allOperations = [].concat.apply([], allOperations)
+  numRequests = Math.ceil(allOperations.length / DynamoTable.MAX_WRITE)
 
   for (i = 0; i < allOperations.length; i += DynamoTable.MAX_WRITE) {
     requestItems = {}
@@ -425,7 +423,7 @@ DynamoTable.prototype.batchWrite = function(operations, tables, cb) {
       requestItems[operation._table].push(operation)
       delete operation._table
     }
-    requests.push(requestItems)
+    batchRequest(requestItems, checkDone)
   }
 
   function batchRequest(requestItems, cb) {
@@ -437,7 +435,11 @@ DynamoTable.prototype.batchWrite = function(operations, tables, cb) {
     })
   }
 
-  async.each(requests, batchRequest, cb)
+  function checkDone(err) {
+    if (err) return cb(err)
+    if (!--numRequests)
+      cb()
+  }
 }
 
 DynamoTable.prototype.createTable = function(readCapacity, writeCapacity, indexes, options, cb) {

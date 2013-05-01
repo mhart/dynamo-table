@@ -20,12 +20,10 @@
   "license": "MIT",
   "devDependencies": {
     "should": "~1.2.2",
-    "mocha": "~1.9.0"
+    "mocha": "~1.9.0",
+    "async": "~0.2.7"
   },
   "optionalDependencies": {
     "dynamo-client": "~1.0.0"
-  },
-  "dependencies": {
-    "async": "~0.2.7"
   }
 }
