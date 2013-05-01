@@ -285,8 +285,20 @@ DynamoTable.prototype.query = function(conditions, options, cb) {
   if (!cb) { cb = options; options = {} }
   if (typeof cb !== 'function') throw new Error('Last parameter must be a callback function')
   options = this._getDefaultOptions(options)
+  var self = this, nonKeys
 
   options.KeyConditions = options.KeyConditions || this.conditions(conditions)
+  if (!options.IndexName) {
+    nonKeys = Object.keys(options.KeyConditions).filter(function(attr) { return !~self.key.indexOf(attr) })
+    if (nonKeys.length) {
+      // we have a non-key attribute, must find an IndexName
+      this.resolveIndexes(this.indexes).forEach(function(index) {
+        if (index.key === nonKeys[0])
+          options.IndexName = index.name
+      })
+      options.IndexName = options.IndexName || nonKeys[0]
+    }
+  }
   this._listRequest('Query', options, cb)
 }
 
@@ -428,13 +440,6 @@ DynamoTable.prototype.batchWrite = function(operations, tables, cb) {
   async.each(requests, batchRequest, cb)
 }
 
-// indexes:
-// [attr1/name1, attr2/name2]
-// {name: attr1}
-// {name: [attr1, attr2]} - try no projection type
-// {name: {key: [attr1, attr2], projection: 'KEYS_ONLY'}}
-// {name: {key: [attr1, attr2], projection: [attr1, attr2]}}
-
 DynamoTable.prototype.createTable = function(readCapacity, writeCapacity, indexes, options, cb) {
   if (!cb) { cb = options; options = {} }
   if (!cb) { cb = indexes; indexes = this.indexes }
@@ -448,29 +453,11 @@ DynamoTable.prototype.createTable = function(readCapacity, writeCapacity, indexe
         return namesObj
       }, {})
 
-  if (indexes && Object.keys(indexes).length && !options.LocalSecondaryIndexes) {
-    if (Array.isArray(indexes)) {
-      indexes = indexes.reduce(function(indexesObj, attr) {
-        indexesObj[attr] = attr
-        return indexesObj
-      }, {})
-    }
-    options.LocalSecondaryIndexes = Object.keys(indexes).map(function(name) {
-      var index = indexes[name], lsi
-      if (typeof index === 'string')
-        index = {key: [indexes[name]]}
-      else if (Array.isArray(index))
-        index = {key: indexes[name]}
-      index.key.forEach(function(attr) {
-        attrMap[attr] = true
-      })
-      if (index.key[0] != self.key[0])
-        index.key.unshift(self.key[0])
-      index.projection = index.projection || 'ALL'
-
-      lsi = {
-        IndexName: name,
-        KeySchema: index.key.map(function(attr, ix) {
+  if (indexes && !options.LocalSecondaryIndexes) {
+    options.LocalSecondaryIndexes = this.resolveIndexes(indexes).map(function(index) {
+      var lsi = {
+        IndexName: index.name,
+        KeySchema: [self.key[0], index.key].map(function(attr, ix) {
           return { AttributeName: attr, KeyType: ix === 0 ? 'HASH' : 'RANGE' }
         }),
       }
@@ -478,6 +465,9 @@ DynamoTable.prototype.createTable = function(readCapacity, writeCapacity, indexe
         lsi.Projection = {ProjectionType: index.projection}
       else if (Array.isArray(index.projection))
         lsi.Projection = {ProjectionType: 'INCLUDE', NonKeyAttributes: index.projection}
+
+      attrMap[index.key] = true
+
       return lsi
     })
   }
@@ -651,6 +641,28 @@ DynamoTable.prototype.comparison = function(comparison) {
       return 'NOT_CONTAINS'
   }
   return comparison.toUpperCase()
+}
+
+// indexes:
+// [attr1/name1, attr2/name2]
+// {name: attr1}
+// {name: {key: attr1, projection: 'KEYS_ONLY'}}
+// {name: {key: attr1, projection: [attr1, attr2]}}
+// [{name: name1, key: attr1}, {name: name2, key: attr2}]
+DynamoTable.prototype.resolveIndexes = function(indexes) {
+  if (!indexes) return []
+  if (!Array.isArray(indexes)) {
+    indexes = Object.keys(indexes).map(function(name) {
+      var index = indexes[name]
+      if (typeof index === 'string') index = {key: index}
+      return {name: name, key: index.key, projection: index.projection}
+    })
+  }
+  return indexes.map(function(index) {
+    if (typeof index === 'string') index = {name: index, key: index}
+    index.projection = index.projection || 'ALL'
+    return index
+  })
 }
 
 DynamoTable.prototype._getDefaultOptions = function(options) {

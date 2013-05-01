@@ -588,6 +588,20 @@ describe('query', function() {
     })
   })
 
+  it('should find index to query', function(done) {
+    var table, client = mockClient({Items: [{id: {S: 'a'}, name: {S: 'a'}, email: {S: 'c'}}]})
+    table = dynamoTable('name', {client: client, key: ['id', 'name'], indexes: {emailIx: 'email'}})
+    table.query({id: 'a', email: {'>': 'b'}}, function(err, items) {
+      if (err) return done(err)
+      client.options.KeyConditions.should.eql({
+        id: {ComparisonOperator: 'EQ', AttributeValueList: [{S: 'a'}]},
+        email: {ComparisonOperator: 'GT', AttributeValueList: [{S: 'b'}]},
+      })
+      client.options.IndexName.should.equal('emailIx')
+      items.should.eql([{id: 'a', name: 'a', email: 'c'}])
+      done()
+    })
+  })
 })
 
 
@@ -924,13 +938,14 @@ describe('createTable', function() {
     })
   })
 
-  it('should create indexes from an array', function(done) {
+  it('should create indexes from a string array', function(done) {
     var table, client = mockClient({})
-    table = dynamoTable('name', {client: client})
+    table = dynamoTable('name', {client: client, key: ['id', 'name']})
     table.createTable(1, 1, ['firstName', 'email'], function(err) {
       if (err) return done(err)
       client.options.AttributeDefinitions.should.eql([
         {AttributeName: 'id', AttributeType: 'S'},
+        {AttributeName: 'name', AttributeType: 'S'},
         {AttributeName: 'firstName', AttributeType: 'S'},
         {AttributeName: 'email', AttributeType: 'S'},
       ])
@@ -956,9 +971,41 @@ describe('createTable', function() {
     })
   })
 
+  it('should create indexes from an object array', function(done) {
+    var table, client = mockClient({})
+    table = dynamoTable('name', {client: client, key: ['id', 'name']})
+    table.createTable(1, 1, [{name: 'email1', key: 'email'}, {name: 'email2', key: 'email'}], function(err) {
+      if (err) return done(err)
+      client.options.AttributeDefinitions.should.eql([
+        {AttributeName: 'id', AttributeType: 'S'},
+        {AttributeName: 'name', AttributeType: 'S'},
+        {AttributeName: 'email', AttributeType: 'S'},
+      ])
+      client.options.LocalSecondaryIndexes.should.eql([
+        {
+          IndexName: 'email1',
+          KeySchema: [
+            {AttributeName: 'id', KeyType: 'HASH'},
+            {AttributeName: 'email', KeyType: 'RANGE'},
+          ],
+          Projection: {ProjectionType: 'ALL'}
+        },
+        {
+          IndexName: 'email2',
+          KeySchema: [
+            {AttributeName: 'id', KeyType: 'HASH'},
+            {AttributeName: 'email', KeyType: 'RANGE'},
+          ],
+          Projection: {ProjectionType: 'ALL'}
+        },
+      ])
+      done()
+    })
+  })
+
   it('should create indexes from an object', function(done) {
     var table, client = mockClient({})
-    table = dynamoTable('name', {client: client})
+    table = dynamoTable('name', {client: client, key: ['id', 'name']})
     table.createTable(1, 1, {nameIndex: 'name', emailIndex: 'email'}, function(err) {
       if (err) return done(err)
       client.options.AttributeDefinitions.should.eql([
@@ -988,35 +1035,10 @@ describe('createTable', function() {
     })
   })
 
-  it('should create an index with multiple attributes', function(done) {
-    var table, client = mockClient({})
-    table = dynamoTable('name', {client: client})
-    table.createTable(1, 1, {nameIndex: ['name', 'email']}, function(err) {
-      if (err) return done(err)
-      client.options.AttributeDefinitions.should.eql([
-        {AttributeName: 'id', AttributeType: 'S'},
-        {AttributeName: 'name', AttributeType: 'S'},
-        {AttributeName: 'email', AttributeType: 'S'},
-      ])
-      client.options.LocalSecondaryIndexes.should.eql([
-        {
-          IndexName: 'nameIndex',
-          KeySchema: [
-            {AttributeName: 'id', KeyType: 'HASH'},
-            {AttributeName: 'name', KeyType: 'RANGE'},
-            {AttributeName: 'email', KeyType: 'RANGE'},
-          ],
-          Projection: {ProjectionType: 'ALL'}
-        },
-      ])
-      done()
-    })
-  })
-
   it('should create an index with a simple projection', function(done) {
     var table, client = mockClient({})
-    table = dynamoTable('name', {client: client})
-    table.createTable(1, 1, {nameIndex: {key: ['name', 'email'], projection: 'KEYS_ONLY'}}, function(err) {
+    table = dynamoTable('name', {client: client, key: ['id', 'name']})
+    table.createTable(1, 1, {nameIndex: {key: 'email', projection: 'KEYS_ONLY'}}, function(err) {
       if (err) return done(err)
       client.options.AttributeDefinitions.should.eql([
         {AttributeName: 'id', AttributeType: 'S'},
@@ -1028,7 +1050,6 @@ describe('createTable', function() {
           IndexName: 'nameIndex',
           KeySchema: [
             {AttributeName: 'id', KeyType: 'HASH'},
-            {AttributeName: 'name', KeyType: 'RANGE'},
             {AttributeName: 'email', KeyType: 'RANGE'},
           ],
           Projection: {ProjectionType: 'KEYS_ONLY'}
@@ -1040,8 +1061,8 @@ describe('createTable', function() {
 
   it('should create an index with an INCLUDE projection', function(done) {
     var table, client = mockClient({})
-    table = dynamoTable('name', {client: client})
-    table.createTable(1, 1, {nameIndex: {key: ['name', 'email'], projection: ['address', 'dob']}}, function(err) {
+    table = dynamoTable('name', {client: client, key: ['id', 'name']})
+    table.createTable(1, 1, {nameIndex: {key: 'email', projection: ['address', 'dob']}}, function(err) {
       if (err) return done(err)
       client.options.AttributeDefinitions.should.eql([
         {AttributeName: 'id', AttributeType: 'S'},
@@ -1053,7 +1074,6 @@ describe('createTable', function() {
           IndexName: 'nameIndex',
           KeySchema: [
             {AttributeName: 'id', KeyType: 'HASH'},
-            {AttributeName: 'name', KeyType: 'RANGE'},
             {AttributeName: 'email', KeyType: 'RANGE'},
           ],
           Projection: {ProjectionType: 'INCLUDE', NonKeyAttributes: ['address', 'dob']}
@@ -1117,39 +1137,18 @@ describe('createTable', function() {
   it('should get index types from mappings if not in keyTypes', function(done) {
     var table, client = mockClient({})
     table = dynamoTable('name', {client: client, key: 'id', keyTypes: {dob: 'timestamp'}, mappings: {image: 'B'}})
-    table.createTable(1, 1, {dobIndex: ['dob', 'image']}, function(err) {
+    table.createTable(1, 1, {imageIndex: 'image'}, function(err) {
       if (err) return done(err)
       client.options.AttributeDefinitions.should.eql([
         {AttributeName: 'id', AttributeType: 'S'},
-        {AttributeName: 'dob', AttributeType: 'N'},
         {AttributeName: 'image', AttributeType: 'B'},
       ])
       client.options.LocalSecondaryIndexes.should.eql([
         {
-          IndexName: 'dobIndex',
+          IndexName: 'imageIndex',
           KeySchema: [
             {AttributeName: 'id', KeyType: 'HASH'},
-            {AttributeName: 'dob', KeyType: 'RANGE'},
             {AttributeName: 'image', KeyType: 'RANGE'},
-          ],
-          Projection: {ProjectionType: 'ALL'}
-        },
-      ])
-      done()
-    })
-  })
-
-  it('should not add hash key twice if it is already in the index', function(done) {
-    var table, client = mockClient({})
-    table = dynamoTable('name', {client: client})
-    table.createTable(1, 1, {dobIndex: ['id', 'dob']}, function(err) {
-      if (err) return done(err)
-      client.options.LocalSecondaryIndexes.should.eql([
-        {
-          IndexName: 'dobIndex',
-          KeySchema: [
-            {AttributeName: 'id', KeyType: 'HASH'},
-            {AttributeName: 'dob', KeyType: 'RANGE'},
           ],
           Projection: {ProjectionType: 'ALL'}
         },
