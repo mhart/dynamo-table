@@ -1,6 +1,6 @@
 {
   "name": "dynamo-table",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Maps JS objects and queries to DynamoDB tables",
   "main": "index.js",
   "scripts": {
