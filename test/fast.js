@@ -334,40 +334,38 @@ describe('resolveKey', function() {
 })
 
 
+function mockClient(data) {
+  var client = {}, err
+  if (data instanceof Error) { err = data; data = null }
+  client.request = function(target, options, cb) {
+    client.target = target
+    client.options = options
+    process.nextTick(cb.bind(null, err, data))
+  }
+  return client
+}
+
+
 describe('get', function() {
 
   it('should call with default options', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        target.should.equal('GetItem')
-        options.TableName.should.equal('name')
-        options.Key.should.eql({id: {N: '23'}})
-        should.not.exist(options.AttributesToGet)
-        should.not.exist(options.ConsistentRead)
-        should.not.exist(options.ReturnConsumedCapacity)
-        process.nextTick(cb.bind(null, null, {Item: {id: {N: '23'}, name: {S: 'john'}}}))
-      }
-    }
+    var table, client = mockClient({Item: {id: {N: '23'}, name: {S: 'john'}}})
     table = dynamoTable('name', {client: client})
     table.get(23, function(err, jsObj) {
       if (err) return done(err)
+      client.target.should.equal('GetItem')
+      client.options.TableName.should.equal('name')
+      client.options.Key.should.eql({id: {N: '23'}})
+      should.not.exist(client.options.AttributesToGet)
+      should.not.exist(client.options.ConsistentRead)
+      should.not.exist(client.options.ReturnConsumedCapacity)
       jsObj.should.eql({id: 23, name: 'john'})
       done()
     })
   })
 
   it('should use options if passed in', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        target.should.equal('GetItem')
-        options.TableName.should.equal('other')
-        options.Key.should.eql({id: {N: '100'}})
-        options.AttributesToGet.should.eql(['id'])
-        should.not.exist(options.ConsistentRead)
-        should.not.exist(options.ReturnConsumedCapacity)
-        process.nextTick(cb.bind(null, null, {Item: {id: {N: '100'}}}))
-      }
-    }
+    var table, client = mockClient({Item: {id: {N: '100'}}})
     table = dynamoTable('name', {client: client})
     table.get(23, {
       TableName: 'other',
@@ -375,17 +373,19 @@ describe('get', function() {
       AttributesToGet: ['id'],
     }, function(err, jsObj) {
       if (err) return done(err)
+      client.target.should.equal('GetItem')
+      client.options.TableName.should.equal('other')
+      client.options.Key.should.eql({id: {N: '100'}})
+      client.options.AttributesToGet.should.eql(['id'])
+      should.not.exist(client.options.ConsistentRead)
+      should.not.exist(client.options.ReturnConsumedCapacity)
       jsObj.should.eql({id: 100})
       done()
     })
   })
 
   it('should callback with error if client error', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        process.nextTick(cb.bind(null, new Error('whoops')))
-      }
-    }
+    var table, client = mockClient(new Error('whoops'))
     table = dynamoTable('name', {client: client})
     table.get(23, function(err) {
       err.should.be.an.instanceOf(Error)
@@ -395,39 +395,37 @@ describe('get', function() {
   })
 
   it('should accept different types of keys', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        options.Key.should.eql({id: {N: '23'}, name: {S: 'john'}})
-        process.nextTick(cb.bind(null, null, {Item:{}}))
-      }
-    }
+    var table, client = mockClient({Item: {}})
     table = dynamoTable('name', {client: client, key: ['id', 'name']})
     table.get([23, 'john'], function(err) {
       if (err) return done(err)
-      table.get({id: 23, name: 'john'}, done)
+      client.options.Key.should.eql({id: {N: '23'}, name: {S: 'john'}})
+      table.get({id: 23, name: 'john'}, function(err) {
+        if (err) return done(err)
+        client.options.Key.should.eql({id: {N: '23'}, name: {S: 'john'}})
+        done()
+      })
     })
   })
 
   it('should convert options to AttributesToGet if array', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        options.AttributesToGet.should.eql(['id', 'name'])
-        process.nextTick(cb.bind(null, null, {Item:{}}))
-      }
-    }
+    var table, client = mockClient({Item: {}})
     table = dynamoTable('name', {client: client})
-    table.get(23, ['id', 'name'], done)
+    table.get(23, ['id', 'name'], function(err) {
+      if (err) return done(err)
+      client.options.AttributesToGet.should.eql(['id', 'name'])
+      done()
+    })
   })
 
   it('should convert options to AttributesToGet if string', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        options.AttributesToGet.should.eql(['id'])
-        process.nextTick(cb.bind(null, null, {Item:{}}))
-      }
-    }
+    var table, client = mockClient({Item: {}})
     table = dynamoTable('name', {client: client})
-    table.get(23, 'id', done)
+    table.get(23, 'id', function(err) {
+      if (err) return done(err)
+      client.options.AttributesToGet.should.eql(['id'])
+      done()
+    })
   })
 })
 
@@ -435,20 +433,19 @@ describe('get', function() {
 describe('put', function() {
 
   it('should call with default options', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        target.should.equal('PutItem')
-        options.TableName.should.equal('name')
-        options.Item.should.eql({id: {N: '23'}, name: {S: 'john'}})
-        should.not.exist(options.Expected)
-        should.not.exist(options.ReturnConsumedCapacity)
-        should.not.exist(options.ReturnItemCollectionMetrics)
-        should.not.exist(options.ReturnValues)
-        process.nextTick(cb)
-      }
-    }
+    var table, client = mockClient()
     table = dynamoTable('name', {client: client})
-    table.put({id: 23, name: 'john'}, done)
+    table.put({id: 23, name: 'john'}, function(err) {
+      if (err) return done(err)
+      client.target.should.equal('PutItem')
+      client.options.TableName.should.equal('name')
+      client.options.Item.should.eql({id: {N: '23'}, name: {S: 'john'}})
+      should.not.exist(client.options.Expected)
+      should.not.exist(client.options.ReturnConsumedCapacity)
+      should.not.exist(client.options.ReturnItemCollectionMetrics)
+      should.not.exist(client.options.ReturnValues)
+      done()
+    })
   })
 })
 
@@ -456,20 +453,19 @@ describe('put', function() {
 describe('delete', function() {
 
   it('should call with default options', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        target.should.equal('DeleteItem')
-        options.TableName.should.equal('name')
-        options.Key.should.eql({id: {N: '23'}})
-        should.not.exist(options.Expected)
-        should.not.exist(options.ReturnConsumedCapacity)
-        should.not.exist(options.ReturnItemCollectionMetrics)
-        should.not.exist(options.ReturnValues)
-        process.nextTick(cb)
-      }
-    }
+    var table, client = mockClient()
     table = dynamoTable('name', {client: client})
-    table.delete(23, done)
+    table.delete(23, function(err) {
+      if (err) return done(err)
+      client.target.should.equal('DeleteItem')
+      client.options.TableName.should.equal('name')
+      client.options.Key.should.eql({id: {N: '23'}})
+      should.not.exist(client.options.Expected)
+      should.not.exist(client.options.ReturnConsumedCapacity)
+      should.not.exist(client.options.ReturnItemCollectionMetrics)
+      should.not.exist(client.options.ReturnValues)
+      done()
+    })
   })
 })
 
@@ -477,62 +473,59 @@ describe('delete', function() {
 describe('update', function() {
 
   it('should call with default options', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        target.should.equal('UpdateItem')
-        options.TableName.should.equal('name')
-        options.Key.should.eql({id: {N: '23'}})
-        options.AttributeUpdates.should.eql({
-          name: {Value: {S: 'john'}},
-          age: {Value: {N: '24'}},
-          address: {Action: 'DELETE'},
-        })
-        should.not.exist(options.Expected)
-        should.not.exist(options.ReturnConsumedCapacity)
-        should.not.exist(options.ReturnItemCollectionMetrics)
-        should.not.exist(options.ReturnValues)
-        process.nextTick(cb)
-      }
-    }
+    var table, client = mockClient()
     table = dynamoTable('name', {client: client})
-    table.update({id: 23, name: 'john', age: 24, address: null}, done)
+    table.update({id: 23, name: 'john', age: 24, address: null}, function(err) {
+      if (err) return done(err)
+      client.target.should.equal('UpdateItem')
+      client.options.TableName.should.equal('name')
+      client.options.Key.should.eql({id: {N: '23'}})
+      client.options.AttributeUpdates.should.eql({
+        name: {Value: {S: 'john'}},
+        age: {Value: {N: '24'}},
+        address: {Action: 'DELETE'},
+      })
+      should.not.exist(client.options.Expected)
+      should.not.exist(client.options.ReturnConsumedCapacity)
+      should.not.exist(client.options.ReturnItemCollectionMetrics)
+      should.not.exist(client.options.ReturnValues)
+      done()
+    })
   })
 
   it('should throw if bad actions are used', function() {
-    var table = dynamoTable('name')
+    var table = dynamoTable('name', {client: mockClient()})
     table.update.bind(table, 23, {delete: 'a', id: 34}).should.throw()
   })
 
   it('should assign mixed actions', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        options.Key.should.eql({id: {N: '23'}})
-        options.AttributeUpdates.should.eql({
-          name: {Value: {S: 'john'}},
-          age: {Action: 'ADD', Value: {N: '24'}},
-          address: {Action: 'DELETE'},
-          parent: {Action: 'DELETE'},
-        })
-        process.nextTick(cb)
-      }
-    }
+    var table, client = mockClient()
     table = dynamoTable('name', {client: client})
-    table.update(23, {put: {name: 'john', address: null}, add: {age: 24}, delete: 'parent'}, done)
+    table.update(23, {put: {name: 'john', address: null}, add: {age: 24}, delete: 'parent'}, function(err) {
+      if (err) return done(err)
+      client.options.Key.should.eql({id: {N: '23'}})
+      client.options.AttributeUpdates.should.eql({
+        name: {Value: {S: 'john'}},
+        age: {Action: 'ADD', Value: {N: '24'}},
+        address: {Action: 'DELETE'},
+        parent: {Action: 'DELETE'},
+      })
+      done()
+    })
   })
 
   it('should delete from sets', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        options.Key.should.eql({id: {N: '23'}})
-        options.AttributeUpdates.should.eql({
-          parent: {Action: 'DELETE'},
-          clientIds: {Action: 'DELETE', Value: {NS: ['1', '2', '3']}},
-        })
-        process.nextTick(cb)
-      }
-    }
+    var table, client = mockClient()
     table = dynamoTable('name', {client: client})
-    table.update(23, {delete: ['parent', {clientIds: [1, 2, 3]}]}, done)
+    table.update(23, {delete: ['parent', {clientIds: [1, 2, 3]}]}, function(err) {
+      if (err) return done(err)
+      client.options.Key.should.eql({id: {N: '23'}})
+      client.options.AttributeUpdates.should.eql({
+        parent: {Action: 'DELETE'},
+        clientIds: {Action: 'DELETE', Value: {NS: ['1', '2', '3']}},
+      })
+      done()
+    })
   })
 })
 
@@ -540,27 +533,21 @@ describe('update', function() {
 describe('query', function() {
 
   it('should call with default options', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        target.should.equal('Query')
-        options.TableName.should.equal('name')
-        options.KeyConditions.should.eql({id: {ComparisonOperator: 'EQ', AttributeValueList: [{N: '23'}]}})
-        should.not.exist(options.AttributesToGet)
-        should.not.exist(options.ConsistentRead)
-        should.not.exist(options.ReturnConsumedCapacity)
-        should.not.exist(options.ExclusiveStartKey)
-        should.not.exist(options.IndexName)
-        should.not.exist(options.Limit)
-        should.not.exist(options.ScanIndexForward)
-        should.not.exist(options.Select)
-        process.nextTick(function() {
-          cb(null, {Items: [{id: {N: '23'}, name: {S: 'john'}}]})
-        })
-      }
-    }
+    var table, client = mockClient({Items: [{id: {N: '23'}, name: {S: 'john'}}]})
     table = dynamoTable('name', {client: client})
     table.query({id: 23}, function(err, items) {
       if (err) return done(err)
+      client.target.should.equal('Query')
+      client.options.TableName.should.equal('name')
+      client.options.KeyConditions.should.eql({id: {ComparisonOperator: 'EQ', AttributeValueList: [{N: '23'}]}})
+      should.not.exist(client.options.AttributesToGet)
+      should.not.exist(client.options.ConsistentRead)
+      should.not.exist(client.options.ReturnConsumedCapacity)
+      should.not.exist(client.options.ExclusiveStartKey)
+      should.not.exist(client.options.IndexName)
+      should.not.exist(client.options.Limit)
+      should.not.exist(client.options.ScanIndexForward)
+      should.not.exist(client.options.Select)
       items.should.eql([{id: 23, name: 'john'}])
       done()
     })
@@ -607,24 +594,18 @@ describe('query', function() {
 describe('scan', function() {
 
   it('should call with default options', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        target.should.equal('Scan')
-        options.TableName.should.equal('name')
-        should.not.exist(options.ScanFilter)
-        should.not.exist(options.AttributesToGet)
-        should.not.exist(options.ReturnConsumedCapacity)
-        should.not.exist(options.ExclusiveStartKey)
-        should.not.exist(options.Limit)
-        should.not.exist(options.Select)
-        process.nextTick(function() {
-          cb(null, {Items: [{id: {N: '23'}, name: {S: 'john'}}, {id: {N: '24'}, name: {S: 'jane'}}]})
-        })
-      }
-    }
+    var table, client = mockClient({Items: [{id: {N: '23'}, name: {S: 'john'}}, {id: {N: '24'}, name: {S: 'jane'}}]})
     table = dynamoTable('name', {client: client})
     table.scan(function(err, items) {
       if (err) return done(err)
+      client.target.should.equal('Scan')
+      client.options.TableName.should.equal('name')
+      should.not.exist(client.options.ScanFilter)
+      should.not.exist(client.options.AttributesToGet)
+      should.not.exist(client.options.ReturnConsumedCapacity)
+      should.not.exist(client.options.ExclusiveStartKey)
+      should.not.exist(client.options.Limit)
+      should.not.exist(client.options.Select)
       items.should.eql([{id: 23, name: 'john'}, {id: 24, name: 'jane'}])
       done()
     })
@@ -670,68 +651,56 @@ describe('scan', function() {
 describe('batchGet', function() {
 
   it('should call with default options', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        target.should.equal('BatchGetItem')
-        options.RequestItems.should.eql({name: {Keys: [{id: {N: '1'}}, {id: {N: '2'}}, {id: {N: '3'}}]}})
-        should.not.exist(options.ReturnConsumedCapacity)
-        process.nextTick(cb.bind(null, null, {Responses: {
-          name: {Items: [{id: {N: '1'}, n: {S: 'a'}}, {id: {N: '2'}, n: {S: 'b'}}, {id: {N: '3'}, n: {S: 'c'}}]}
-        }}))
-      }
-    }
+    var table, client = mockClient({Responses: {
+      name: {Items: [{id: {N: '1'}, n: {S: 'a'}}, {id: {N: '2'}, n: {S: 'b'}}, {id: {N: '3'}, n: {S: 'c'}}]}
+    }})
     table = dynamoTable('name', {client: client})
     table.batchGet([1, 2, 3], function(err, items) {
       if (err) return done(err)
+      client.target.should.equal('BatchGetItem')
+      client.options.RequestItems.should.eql({name: {Keys: [{id: {N: '1'}}, {id: {N: '2'}}, {id: {N: '3'}}]}})
+      should.not.exist(client.options.ReturnConsumedCapacity)
       items.should.eql([{id: 1, n: 'a'}, {id: 2, n: 'b'}, {id: 3, n: 'c'}])
       done()
     })
   })
 
   it('should only return specified attributes', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        target.should.equal('BatchGetItem')
-        options.RequestItems.should.eql({name: {
-          Keys: [{id: {N: '1'}}, {id: {N: '2'}}, {id: {N: '3'}}],
-          AttributesToGet: ['id'],
-        }})
-        process.nextTick(cb.bind(null, null, {Responses: {
-          name: {Items: [{id: {N: '1'}}, {id: {N: '2'}}, {id: {N: '3'}}]}
-        }}))
-      }
-    }
+    var table, client = mockClient({Responses: {
+      name: {Items: [{id: {N: '1'}}, {id: {N: '2'}}, {id: {N: '3'}}]}
+    }})
     table = dynamoTable('name', {client: client})
     table.batchGet([1, 2, 3], 'id', function(err, items) {
       if (err) return done(err)
+      client.target.should.equal('BatchGetItem')
+      client.options.RequestItems.should.eql({name: {
+        Keys: [{id: {N: '1'}}, {id: {N: '2'}}, {id: {N: '3'}}],
+        AttributesToGet: ['id'],
+      }})
       items.should.eql([{id: 1}, {id: 2}, {id: 3}])
       done()
     })
   })
 
   it('should return multiple tables', function(done) {
-    var table, table2, client = {
-      request: function(target, options, cb) {
-        target.should.equal('BatchGetItem')
-        options.RequestItems.should.eql({
-          table1: {
-            Keys: [{id: {N: '1'}}, {id: {N: '2'}}, {id: {N: '3'}}],
-            AttributesToGet: ['id'],
-          },
-          table2: {
-            Keys: [{id: {N: '4'}}, {id: {N: '5'}}],
-          },
-        })
-        process.nextTick(cb.bind(null, null, {Responses: {
-          table1: {Items: [{id: {N: '1'}}, {id: {N: '2'}}, {id: {N: '3'}}]},
-          table2: {Items: [{id: {N: '4'}, n: {S: 'a'}}, {id: {N: '5'}, n: {S: 'b'}}]},
-        }}))
-      }
-    }
+    var table, table2, client = mockClient({Responses: {
+      table1: {Items: [{id: {N: '1'}}, {id: {N: '2'}}, {id: {N: '3'}}]},
+      table2: {Items: [{id: {N: '4'}, n: {S: 'a'}}, {id: {N: '5'}, n: {S: 'b'}}]},
+    }})
     table = dynamoTable('table1', {client: client})
-    table2 = dynamoTable('table2')
+    table2 = dynamoTable('table2', {client: mockClient()})
     table.batchGet([1, 2, 3], 'id', [{table: table2, keys: [4, 5]}], function(err, items) {
       if (err) return done(err)
+      client.target.should.equal('BatchGetItem')
+      client.options.RequestItems.should.eql({
+        table1: {
+          Keys: [{id: {N: '1'}}, {id: {N: '2'}}, {id: {N: '3'}}],
+          AttributesToGet: ['id'],
+        },
+        table2: {
+          Keys: [{id: {N: '4'}}, {id: {N: '5'}}],
+        },
+      })
       items.should.eql({
         table1: [{id: 1}, {id: 2}, {id: 3}],
         table2: [{id: 4, n: 'a'}, {id: 5, n: 'b'}]
@@ -784,53 +753,61 @@ describe('batchGet', function() {
 describe('batchWrite', function() {
 
   it('should call with default options', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        target.should.equal('BatchWriteItem')
-        options.RequestItems.should.eql({name: [
-          {PutRequest: {Item: {id: {N: '1'}, n: {S: 'a'}}}},
-          {PutRequest: {Item: {id: {N: '2'}, n: {S: 'b'}}}},
-          {PutRequest: {Item: {id: {N: '3'}, n: {S: 'c'}}}},
-        ]})
-        should.not.exist(options.ReturnConsumedCapacity)
-        process.nextTick(cb.bind(null, null, {}))
-      }
-    }
+    var table, client = mockClient({})
     table = dynamoTable('name', {client: client})
-    table.batchWrite([{id: 1, n: 'a'}, {id: 2, n: 'b'}, {id: 3, n: 'c'}], done)
+    table.batchWrite([{id: 1, n: 'a'}, {id: 2, n: 'b'}, {id: 3, n: 'c'}], function(err) {
+      if (err) return done(err)
+      client.target.should.equal('BatchWriteItem')
+      client.options.RequestItems.should.eql({name: [
+        {PutRequest: {Item: {id: {N: '1'}, n: {S: 'a'}}}},
+        {PutRequest: {Item: {id: {N: '2'}, n: {S: 'b'}}}},
+        {PutRequest: {Item: {id: {N: '3'}, n: {S: 'c'}}}},
+      ]})
+      should.not.exist(client.options.ReturnConsumedCapacity)
+      done()
+    })
   })
 
-  it('should process deletes', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        target.should.equal('BatchWriteItem')
-        options.RequestItems.should.eql({name: [
-          {PutRequest: {Item: {id: {N: '1'}, n: {S: 'a'}}}},
-          {DeleteRequest: {Key: {id: {N: '2'}}}},
-          {DeleteRequest: {Key: {id: {N: '3'}}}},
-        ]})
-        should.not.exist(options.ReturnConsumedCapacity)
-        process.nextTick(cb.bind(null, null, {}))
-      }
-    }
+  it('should process only deletes', function(done) {
+    var table, client = mockClient({})
     table = dynamoTable('name', {client: client})
-    table.batchWrite({puts: [{id: 1, n: 'a'}], deletes: [2, 3]}, done)
+    table.batchWrite({deletes: [2, 3]}, function(err) {
+      if (err) return done(err)
+      client.options.RequestItems.should.eql({name: [
+        {DeleteRequest: {Key: {id: {N: '2'}}}},
+        {DeleteRequest: {Key: {id: {N: '3'}}}},
+      ]})
+      done()
+    })
+  })
+
+  it('should process puts and deletes', function(done) {
+    var table, client = mockClient({})
+    table = dynamoTable('name', {client: client})
+    table.batchWrite({puts: [{id: 1, n: 'a'}], deletes: [2, 3]}, function(err) {
+      if (err) return done(err)
+      client.options.RequestItems.should.eql({name: [
+        {PutRequest: {Item: {id: {N: '1'}, n: {S: 'a'}}}},
+        {DeleteRequest: {Key: {id: {N: '2'}}}},
+        {DeleteRequest: {Key: {id: {N: '3'}}}},
+      ]})
+      done()
+    })
   })
 
   it('should process multiple tables', function(done) {
-    var table, table2, client = {
-      request: function(target, options, cb) {
-        target.should.equal('BatchWriteItem')
-        options.RequestItems.should.eql({
-          table1: [{PutRequest: {Item: {id: {N: '1'}, n: {S: 'a'}}}}],
-          table2: [{PutRequest: {Item: {id: {N: '2'}, n: {S: 'b'}}}}],
-        })
-        process.nextTick(cb.bind(null, null, {}))
-      }
-    }
+    var table, table2, client = mockClient({})
     table = dynamoTable('table1', {client: client})
-    table2 = dynamoTable('table2')
-    table.batchWrite([{id: 1, n: 'a'}], [{table: table2, operations: [{id: 2, n: 'b'}]}], done)
+    table2 = dynamoTable('table2', {client: mockClient()})
+    table.batchWrite([{id: 1, n: 'a'}], [{table: table2, operations: [{id: 2, n: 'b'}]}], function(err) {
+      if (err) return done(err)
+      client.target.should.equal('BatchWriteItem')
+      client.options.RequestItems.should.eql({
+        table1: [{PutRequest: {Item: {id: {N: '1'}, n: {S: 'a'}}}}],
+        table2: [{PutRequest: {Item: {id: {N: '2'}, n: {S: 'b'}}}}],
+      })
+      done()
+    })
   })
 
   it('should call multiple times if UnprocessedKeys', function(done) {
@@ -880,310 +857,329 @@ describe('batchWrite', function() {
 describe('createTable', function() {
 
   it('should call with default options', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        target.should.equal('CreateTable')
-        options.TableName.should.equal('name')
-        options.ProvisionedThroughput.should.eql({ReadCapacityUnits: 1, WriteCapacityUnits: 1})
-        options.AttributeDefinitions.should.eql([{AttributeName: 'id', AttributeType: 'S'}])
-        options.KeySchema.should.eql([{AttributeName: 'id', KeyType: 'HASH'}])
-        should.not.exist(options.LocalSecondaryIndexes)
-        process.nextTick(cb)
-      }
-    }
+    var table, client = mockClient({})
     table = dynamoTable('name', {client: client})
-    table.createTable(done)
+    table.createTable(function(err) {
+      if (err) return done(err)
+      client.target.should.equal('CreateTable')
+      client.options.TableName.should.equal('name')
+      client.options.ProvisionedThroughput.should.eql({ReadCapacityUnits: 1, WriteCapacityUnits: 1})
+      client.options.AttributeDefinitions.should.eql([{AttributeName: 'id', AttributeType: 'S'}])
+      client.options.KeySchema.should.eql([{AttributeName: 'id', KeyType: 'HASH'}])
+      should.not.exist(client.options.LocalSecondaryIndexes)
+      done()
+    })
   })
 
   it('should use capacity units if specified', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        options.ProvisionedThroughput.should.eql({ReadCapacityUnits: 10, WriteCapacityUnits: 20})
-        process.nextTick(cb)
-      }
-    }
+    var table, client = mockClient({})
     table = dynamoTable('name', {client: client})
-    table.createTable(10, 20, done)
+    table.createTable(10, 20, function(err) {
+      if (err) return done(err)
+      client.options.ProvisionedThroughput.should.eql({ReadCapacityUnits: 10, WriteCapacityUnits: 20})
+      done()
+    })
   })
 
   it('should define range key if specified', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        options.AttributeDefinitions.should.eql([
-          {AttributeName: 'id', AttributeType: 'S'},
-          {AttributeName: 'name', AttributeType: 'S'},
-        ])
-        options.KeySchema.should.eql([
-          {AttributeName: 'id', KeyType: 'HASH'},
-          {AttributeName: 'name', KeyType: 'RANGE'},
-        ])
-        process.nextTick(cb)
-      }
-    }
+    var table, client = mockClient({})
     table = dynamoTable('name', {client: client, key: ['id', 'name']})
-    table.createTable(done)
+    table.createTable(function(err) {
+      if (err) return done(err)
+      client.options.AttributeDefinitions.should.eql([
+        {AttributeName: 'id', AttributeType: 'S'},
+        {AttributeName: 'name', AttributeType: 'S'},
+      ])
+      client.options.KeySchema.should.eql([
+        {AttributeName: 'id', KeyType: 'HASH'},
+        {AttributeName: 'name', KeyType: 'RANGE'},
+      ])
+      done()
+    })
   })
 
   it('should use key types from keyTypes if specified', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        options.AttributeDefinitions.should.eql([
-          {AttributeName: 'id', AttributeType: 'B'},
-          {AttributeName: 'name', AttributeType: 'N'},
-        ])
-        process.nextTick(cb)
-      }
-    }
+    var table, client = mockClient({})
     table = dynamoTable('name', {client: client, key: ['id', 'name'], keyTypes: {id: 'B', name: 'N'}})
-    table.createTable(done)
+    table.createTable(function(err) {
+      if (err) return done(err)
+      client.options.AttributeDefinitions.should.eql([
+        {AttributeName: 'id', AttributeType: 'B'},
+        {AttributeName: 'name', AttributeType: 'N'},
+      ])
+      done()
+    })
   })
 
   it('should use key types from mappings if specified', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        options.AttributeDefinitions.should.eql([
-          {AttributeName: 'id', AttributeType: 'B'},
-          {AttributeName: 'name', AttributeType: 'N'},
-        ])
-        process.nextTick(cb)
-      }
-    }
+    var table, client = mockClient({})
     table = dynamoTable('name', {client: client, key: ['id', 'name'], keyTypes: {id: 'B'}, mappings: {name: 'N'}})
-    table.createTable(done)
+    table.createTable(function(err) {
+      if (err) return done(err)
+      client.options.AttributeDefinitions.should.eql([
+        {AttributeName: 'id', AttributeType: 'B'},
+        {AttributeName: 'name', AttributeType: 'N'},
+      ])
+      done()
+    })
   })
 
   it('should create indexes from an array', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        options.AttributeDefinitions.should.eql([
-          {AttributeName: 'id', AttributeType: 'S'},
-          {AttributeName: 'firstName', AttributeType: 'S'},
-          {AttributeName: 'email', AttributeType: 'S'},
-        ])
-        options.LocalSecondaryIndexes.should.eql([
-          {
-            IndexName: 'firstName',
-            KeySchema: [
-              {AttributeName: 'id', KeyType: 'HASH'},
-              {AttributeName: 'firstName', KeyType: 'RANGE'},
-            ]
-          },
-          {
-            IndexName: 'email',
-            KeySchema: [
-              {AttributeName: 'id', KeyType: 'HASH'},
-              {AttributeName: 'email', KeyType: 'RANGE'},
-            ]
-          },
-        ])
-        process.nextTick(cb)
-      }
-    }
+    var table, client = mockClient({})
     table = dynamoTable('name', {client: client})
-    table.createTable(1, 1, ['firstName', 'email'], done)
+    table.createTable(1, 1, ['firstName', 'email'], function(err) {
+      if (err) return done(err)
+      client.options.AttributeDefinitions.should.eql([
+        {AttributeName: 'id', AttributeType: 'S'},
+        {AttributeName: 'firstName', AttributeType: 'S'},
+        {AttributeName: 'email', AttributeType: 'S'},
+      ])
+      client.options.LocalSecondaryIndexes.should.eql([
+        {
+          IndexName: 'firstName',
+          KeySchema: [
+            {AttributeName: 'id', KeyType: 'HASH'},
+            {AttributeName: 'firstName', KeyType: 'RANGE'},
+          ],
+          Projection: {ProjectionType: 'ALL'}
+        },
+        {
+          IndexName: 'email',
+          KeySchema: [
+            {AttributeName: 'id', KeyType: 'HASH'},
+            {AttributeName: 'email', KeyType: 'RANGE'},
+          ],
+          Projection: {ProjectionType: 'ALL'}
+        },
+      ])
+      done()
+    })
   })
 
   it('should create indexes from an object', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        options.AttributeDefinitions.should.eql([
-          {AttributeName: 'id', AttributeType: 'S'},
-          {AttributeName: 'name', AttributeType: 'S'},
-          {AttributeName: 'email', AttributeType: 'S'},
-        ])
-        options.LocalSecondaryIndexes.should.eql([
-          {
-            IndexName: 'nameIndex',
-            KeySchema: [
-              {AttributeName: 'id', KeyType: 'HASH'},
-              {AttributeName: 'name', KeyType: 'RANGE'},
-            ]
-          },
-          {
-            IndexName: 'emailIndex',
-            KeySchema: [
-              {AttributeName: 'id', KeyType: 'HASH'},
-              {AttributeName: 'email', KeyType: 'RANGE'},
-            ]
-          },
-        ])
-        process.nextTick(cb)
-      }
-    }
+    var table, client = mockClient({})
     table = dynamoTable('name', {client: client})
-    table.createTable(1, 1, {nameIndex: 'name', emailIndex: 'email'}, done)
+    table.createTable(1, 1, {nameIndex: 'name', emailIndex: 'email'}, function(err) {
+      if (err) return done(err)
+      client.options.AttributeDefinitions.should.eql([
+        {AttributeName: 'id', AttributeType: 'S'},
+        {AttributeName: 'name', AttributeType: 'S'},
+        {AttributeName: 'email', AttributeType: 'S'},
+      ])
+      client.options.LocalSecondaryIndexes.should.eql([
+        {
+          IndexName: 'nameIndex',
+          KeySchema: [
+            {AttributeName: 'id', KeyType: 'HASH'},
+            {AttributeName: 'name', KeyType: 'RANGE'},
+          ],
+          Projection: {ProjectionType: 'ALL'}
+        },
+        {
+          IndexName: 'emailIndex',
+          KeySchema: [
+            {AttributeName: 'id', KeyType: 'HASH'},
+            {AttributeName: 'email', KeyType: 'RANGE'},
+          ],
+          Projection: {ProjectionType: 'ALL'}
+        },
+      ])
+      done()
+    })
   })
 
   it('should create an index with multiple attributes', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        options.AttributeDefinitions.should.eql([
-          {AttributeName: 'id', AttributeType: 'S'},
-          {AttributeName: 'name', AttributeType: 'S'},
-          {AttributeName: 'email', AttributeType: 'S'},
-        ])
-        options.LocalSecondaryIndexes.should.eql([
-          {
-            IndexName: 'nameIndex',
-            KeySchema: [
-              {AttributeName: 'id', KeyType: 'HASH'},
-              {AttributeName: 'name', KeyType: 'RANGE'},
-              {AttributeName: 'email', KeyType: 'RANGE'},
-            ]
-          },
-        ])
-        process.nextTick(cb)
-      }
-    }
+    var table, client = mockClient({})
     table = dynamoTable('name', {client: client})
-    table.createTable(1, 1, {nameIndex: ['name', 'email']}, done)
+    table.createTable(1, 1, {nameIndex: ['name', 'email']}, function(err) {
+      if (err) return done(err)
+      client.options.AttributeDefinitions.should.eql([
+        {AttributeName: 'id', AttributeType: 'S'},
+        {AttributeName: 'name', AttributeType: 'S'},
+        {AttributeName: 'email', AttributeType: 'S'},
+      ])
+      client.options.LocalSecondaryIndexes.should.eql([
+        {
+          IndexName: 'nameIndex',
+          KeySchema: [
+            {AttributeName: 'id', KeyType: 'HASH'},
+            {AttributeName: 'name', KeyType: 'RANGE'},
+            {AttributeName: 'email', KeyType: 'RANGE'},
+          ],
+          Projection: {ProjectionType: 'ALL'}
+        },
+      ])
+      done()
+    })
   })
 
   it('should create an index with a simple projection', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        options.AttributeDefinitions.should.eql([
-          {AttributeName: 'id', AttributeType: 'S'},
-          {AttributeName: 'name', AttributeType: 'S'},
-          {AttributeName: 'email', AttributeType: 'S'},
-        ])
-        options.LocalSecondaryIndexes.should.eql([
-          {
-            IndexName: 'nameIndex',
-            KeySchema: [
-              {AttributeName: 'id', KeyType: 'HASH'},
-              {AttributeName: 'name', KeyType: 'RANGE'},
-              {AttributeName: 'email', KeyType: 'RANGE'},
-            ],
-            Projection: {ProjectionType: 'ALL'}
-          },
-        ])
-        process.nextTick(cb)
-      }
-    }
+    var table, client = mockClient({})
     table = dynamoTable('name', {client: client})
-    table.createTable(1, 1, {nameIndex: {key: ['name', 'email'], projection: 'ALL'}}, done)
+    table.createTable(1, 1, {nameIndex: {key: ['name', 'email'], projection: 'KEYS_ONLY'}}, function(err) {
+      if (err) return done(err)
+      client.options.AttributeDefinitions.should.eql([
+        {AttributeName: 'id', AttributeType: 'S'},
+        {AttributeName: 'name', AttributeType: 'S'},
+        {AttributeName: 'email', AttributeType: 'S'},
+      ])
+      client.options.LocalSecondaryIndexes.should.eql([
+        {
+          IndexName: 'nameIndex',
+          KeySchema: [
+            {AttributeName: 'id', KeyType: 'HASH'},
+            {AttributeName: 'name', KeyType: 'RANGE'},
+            {AttributeName: 'email', KeyType: 'RANGE'},
+          ],
+          Projection: {ProjectionType: 'KEYS_ONLY'}
+        },
+      ])
+      done()
+    })
   })
 
   it('should create an index with an INCLUDE projection', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        options.AttributeDefinitions.should.eql([
-          {AttributeName: 'id', AttributeType: 'S'},
-          {AttributeName: 'name', AttributeType: 'S'},
-          {AttributeName: 'email', AttributeType: 'S'},
-        ])
-        options.LocalSecondaryIndexes.should.eql([
-          {
-            IndexName: 'nameIndex',
-            KeySchema: [
-              {AttributeName: 'id', KeyType: 'HASH'},
-              {AttributeName: 'name', KeyType: 'RANGE'},
-              {AttributeName: 'email', KeyType: 'RANGE'},
-            ],
-            Projection: {ProjectionType: 'INCLUDE', NonKeyAttributes: ['address', 'dob']}
-          },
-        ])
-        process.nextTick(cb)
-      }
-    }
+    var table, client = mockClient({})
     table = dynamoTable('name', {client: client})
-    table.createTable(1, 1, {nameIndex: {key: ['name', 'email'], projection: ['address', 'dob']}}, done)
+    table.createTable(1, 1, {nameIndex: {key: ['name', 'email'], projection: ['address', 'dob']}}, function(err) {
+      if (err) return done(err)
+      client.options.AttributeDefinitions.should.eql([
+        {AttributeName: 'id', AttributeType: 'S'},
+        {AttributeName: 'name', AttributeType: 'S'},
+        {AttributeName: 'email', AttributeType: 'S'},
+      ])
+      client.options.LocalSecondaryIndexes.should.eql([
+        {
+          IndexName: 'nameIndex',
+          KeySchema: [
+            {AttributeName: 'id', KeyType: 'HASH'},
+            {AttributeName: 'name', KeyType: 'RANGE'},
+            {AttributeName: 'email', KeyType: 'RANGE'},
+          ],
+          Projection: {ProjectionType: 'INCLUDE', NonKeyAttributes: ['address', 'dob']}
+        },
+      ])
+      done()
+    })
   })
 
   it('should create indexes in the presence of a range key', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        options.AttributeDefinitions.should.eql([
-          {AttributeName: 'id', AttributeType: 'S'},
-          {AttributeName: 'name', AttributeType: 'S'},
-          {AttributeName: 'email', AttributeType: 'S'},
-        ])
-        options.KeySchema.should.eql([
-          {AttributeName: 'id', KeyType: 'HASH'},
-          {AttributeName: 'name', KeyType: 'RANGE'},
-        ])
-        options.LocalSecondaryIndexes.should.eql([
-          {
-            IndexName: 'email',
-            KeySchema: [
-              {AttributeName: 'id', KeyType: 'HASH'},
-              {AttributeName: 'email', KeyType: 'RANGE'},
-            ]
-          },
-        ])
-        process.nextTick(cb)
-      }
-    }
+    var table, client = mockClient({})
     table = dynamoTable('name', {client: client, key: ['id', 'name']})
-    table.createTable(1, 1, ['email'], done)
+    table.createTable(1, 1, ['email'], function(err) {
+      if (err) return done(err)
+      client.options.AttributeDefinitions.should.eql([
+        {AttributeName: 'id', AttributeType: 'S'},
+        {AttributeName: 'name', AttributeType: 'S'},
+        {AttributeName: 'email', AttributeType: 'S'},
+      ])
+      client.options.KeySchema.should.eql([
+        {AttributeName: 'id', KeyType: 'HASH'},
+        {AttributeName: 'name', KeyType: 'RANGE'},
+      ])
+      client.options.LocalSecondaryIndexes.should.eql([
+        {
+          IndexName: 'email',
+          KeySchema: [
+            {AttributeName: 'id', KeyType: 'HASH'},
+            {AttributeName: 'email', KeyType: 'RANGE'},
+          ],
+          Projection: {ProjectionType: 'ALL'}
+        },
+      ])
+      done()
+    })
   })
 
   it('should get index types from keyTypes', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        options.AttributeDefinitions.should.eql([
-          {AttributeName: 'id', AttributeType: 'S'},
-          {AttributeName: 'dob', AttributeType: 'N'},
-        ])
-        options.LocalSecondaryIndexes.should.eql([
-          {
-            IndexName: 'dobIndex',
-            KeySchema: [
-              {AttributeName: 'id', KeyType: 'HASH'},
-              {AttributeName: 'dob', KeyType: 'RANGE'},
-            ]
-          },
-        ])
-        process.nextTick(cb)
-      }
-    }
+    var table, client = mockClient({})
     table = dynamoTable('name', {client: client, key: 'id', keyTypes: {dob: 'timestamp'}})
-    table.createTable(1, 1, {dobIndex: 'dob'}, done)
+    table.createTable(1, 1, {dobIndex: 'dob'}, function(err) {
+      if (err) return done(err)
+      client.options.AttributeDefinitions.should.eql([
+        {AttributeName: 'id', AttributeType: 'S'},
+        {AttributeName: 'dob', AttributeType: 'N'},
+      ])
+      client.options.LocalSecondaryIndexes.should.eql([
+        {
+          IndexName: 'dobIndex',
+          KeySchema: [
+            {AttributeName: 'id', KeyType: 'HASH'},
+            {AttributeName: 'dob', KeyType: 'RANGE'},
+          ],
+          Projection: {ProjectionType: 'ALL'}
+        },
+      ])
+      done()
+    })
   })
 
   it('should get index types from mappings if not in keyTypes', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        options.AttributeDefinitions.should.eql([
-          {AttributeName: 'id', AttributeType: 'S'},
-          {AttributeName: 'dob', AttributeType: 'N'},
-          {AttributeName: 'image', AttributeType: 'B'},
-        ])
-        options.LocalSecondaryIndexes.should.eql([
-          {
-            IndexName: 'dobIndex',
-            KeySchema: [
-              {AttributeName: 'id', KeyType: 'HASH'},
-              {AttributeName: 'dob', KeyType: 'RANGE'},
-              {AttributeName: 'image', KeyType: 'RANGE'},
-            ]
-          },
-        ])
-        process.nextTick(cb)
-      }
-    }
+    var table, client = mockClient({})
     table = dynamoTable('name', {client: client, key: 'id', keyTypes: {dob: 'timestamp'}, mappings: {image: 'B'}})
-    table.createTable(1, 1, {dobIndex: ['dob', 'image']}, done)
+    table.createTable(1, 1, {dobIndex: ['dob', 'image']}, function(err) {
+      if (err) return done(err)
+      client.options.AttributeDefinitions.should.eql([
+        {AttributeName: 'id', AttributeType: 'S'},
+        {AttributeName: 'dob', AttributeType: 'N'},
+        {AttributeName: 'image', AttributeType: 'B'},
+      ])
+      client.options.LocalSecondaryIndexes.should.eql([
+        {
+          IndexName: 'dobIndex',
+          KeySchema: [
+            {AttributeName: 'id', KeyType: 'HASH'},
+            {AttributeName: 'dob', KeyType: 'RANGE'},
+            {AttributeName: 'image', KeyType: 'RANGE'},
+          ],
+          Projection: {ProjectionType: 'ALL'}
+        },
+      ])
+      done()
+    })
   })
 
   it('should not add hash key twice if it is already in the index', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        options.LocalSecondaryIndexes.should.eql([
-          {
-            IndexName: 'dobIndex',
-            KeySchema: [
-              {AttributeName: 'id', KeyType: 'HASH'},
-              {AttributeName: 'dob', KeyType: 'RANGE'},
-            ]
-          },
-        ])
-        process.nextTick(cb)
-      }
-    }
+    var table, client = mockClient({})
     table = dynamoTable('name', {client: client})
-    table.createTable(1, 1, {dobIndex: ['id', 'dob']}, done)
+    table.createTable(1, 1, {dobIndex: ['id', 'dob']}, function(err) {
+      if (err) return done(err)
+      client.options.LocalSecondaryIndexes.should.eql([
+        {
+          IndexName: 'dobIndex',
+          KeySchema: [
+            {AttributeName: 'id', KeyType: 'HASH'},
+            {AttributeName: 'dob', KeyType: 'RANGE'},
+          ],
+          Projection: {ProjectionType: 'ALL'}
+        },
+      ])
+      done()
+    })
+  })
+
+  it('should use options from constructor if specified', function(done) {
+    var table, client = mockClient({})
+    table = dynamoTable('name', {client: client, readCapacity: 10, writeCapacity: 20, indexes: ['email']})
+    table.createTable(function(err) {
+      if (err) return done(err)
+      client.options.ProvisionedThroughput.should.eql({ReadCapacityUnits: 10, WriteCapacityUnits: 20})
+      client.options.AttributeDefinitions.should.eql([
+        {AttributeName: 'id', AttributeType: 'S'},
+        {AttributeName: 'email', AttributeType: 'S'},
+      ])
+      client.options.LocalSecondaryIndexes.should.eql([
+        {
+          IndexName: 'email',
+          KeySchema: [
+            {AttributeName: 'id', KeyType: 'HASH'},
+            {AttributeName: 'email', KeyType: 'RANGE'},
+          ],
+          Projection: {ProjectionType: 'ALL'}
+        },
+      ])
+      done()
+    })
   })
 })
 
@@ -1191,16 +1187,12 @@ describe('createTable', function() {
 describe('describeTable', function() {
 
   it('should call with default options', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        target.should.equal('DescribeTable')
-        options.TableName.should.equal('name')
-        process.nextTick(cb.bind(null, null, {Table: {AttributeDefinitions:[]}}))
-      }
-    }
+    var table, client = mockClient({Table: {AttributeDefinitions:[]}})
     table = dynamoTable('name', {client: client})
     table.describeTable(function(err, table) {
       if (err) return done(err)
+      client.target.should.equal('DescribeTable')
+      client.options.TableName.should.equal('name')
       table.should.eql({AttributeDefinitions:[]})
       done()
     })
@@ -1211,16 +1203,15 @@ describe('describeTable', function() {
 describe('updateTable', function() {
 
   it('should call with default options', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        target.should.equal('UpdateTable')
-        options.TableName.should.equal('name')
-        options.ProvisionedThroughput.should.eql({ReadCapacityUnits: 10, WriteCapacityUnits: 20})
-        process.nextTick(cb)
-      }
-    }
+    var table, client = mockClient({})
     table = dynamoTable('name', {client: client})
-    table.updateTable(10, 20, done)
+    table.updateTable(10, 20, function(err) {
+      if (err) return done(err)
+      client.target.should.equal('UpdateTable')
+      client.options.TableName.should.equal('name')
+      client.options.ProvisionedThroughput.should.eql({ReadCapacityUnits: 10, WriteCapacityUnits: 20})
+      done()
+    })
   })
 })
 
@@ -1228,15 +1219,14 @@ describe('updateTable', function() {
 describe('deleteTable', function() {
 
   it('should call with default options', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        target.should.equal('DeleteTable')
-        options.TableName.should.equal('name')
-        process.nextTick(cb)
-      }
-    }
+    var table, client = mockClient({})
     table = dynamoTable('name', {client: client})
-    table.deleteTable(done)
+    table.deleteTable(function(err) {
+      if (err) return done(err)
+      client.target.should.equal('DeleteTable')
+      client.options.TableName.should.equal('name')
+      done()
+    })
   })
 })
 
@@ -1244,18 +1234,14 @@ describe('deleteTable', function() {
 describe('listTables', function() {
 
   it('should call with default options', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        target.should.equal('ListTables')
-        should.not.exist(options.TableName)
-        should.not.exist(options.ExclusiveStartTableName)
-        should.not.exist(options.Limit)
-        process.nextTick(cb.bind(null, null, {TableNames: ['Orders', 'Items']}))
-      }
-    }
+    var table, client = mockClient({TableNames: ['Orders', 'Items']})
     table = dynamoTable('name', {client: client})
     table.listTables(function(err, tables) {
       if (err) return done(err)
+      client.target.should.equal('ListTables')
+      should.not.exist(client.options.TableName)
+      should.not.exist(client.options.ExclusiveStartTableName)
+      should.not.exist(client.options.Limit)
       tables.should.eql(['Orders', 'Items'])
       done()
     })
@@ -1266,41 +1252,29 @@ describe('listTables', function() {
 describe('increment', function() {
 
   it('should call with default options', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        target.should.equal('UpdateItem')
-        options.TableName.should.equal('name')
-        options.Key.should.eql({id: {N: '23'}})
-        options.AttributeUpdates.should.eql({count: {Action: 'ADD', Value: {N: '1'}}})
-        options.ReturnValues.should.equal('UPDATED_NEW')
-        should.not.exist(options.Expected)
-        should.not.exist(options.ReturnConsumedCapacity)
-        should.not.exist(options.ReturnItemCollectionMetrics)
-        process.nextTick(function() {
-          cb(null, {Attributes: {count: {N: '1'}}})
-        })
-      }
-    }
+    var table, client = mockClient({Attributes: {count: {N: '1'}}})
     table = dynamoTable('name', {client: client})
     table.increment(23, 'count', function(err, newVal) {
       if (err) return done(err)
+      client.target.should.equal('UpdateItem')
+      client.options.TableName.should.equal('name')
+      client.options.Key.should.eql({id: {N: '23'}})
+      client.options.AttributeUpdates.should.eql({count: {Action: 'ADD', Value: {N: '1'}}})
+      client.options.ReturnValues.should.equal('UPDATED_NEW')
+      should.not.exist(client.options.Expected)
+      should.not.exist(client.options.ReturnConsumedCapacity)
+      should.not.exist(client.options.ReturnItemCollectionMetrics)
       newVal.should.equal(1)
       done()
     })
   })
 
   it('should allow specific amounts', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        options.AttributeUpdates.should.eql({count: {Action: 'ADD', Value: {N: '10'}}})
-        process.nextTick(function() {
-          cb(null, {Attributes: {count: {N: '11'}}})
-        })
-      }
-    }
+    var table, client = mockClient({Attributes: {count: {N: '11'}}})
     table = dynamoTable('name', {client: client})
     table.increment(23, 'count', 10, function(err, newVal) {
       if (err) return done(err)
+      client.options.AttributeUpdates.should.eql({count: {Action: 'ADD', Value: {N: '10'}}})
       newVal.should.equal(11)
       done()
     })
@@ -1311,37 +1285,33 @@ describe('increment', function() {
 describe('nextId', function() {
 
   it('should call with default options', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        target.should.equal('UpdateItem')
-        options.TableName.should.equal('name')
-        options.Key.should.eql({id: {S: '0'}})
-        options.AttributeUpdates.should.eql({lastId: {Action: 'ADD', Value: {N: '1'}}})
-        options.ReturnValues.should.equal('UPDATED_NEW')
-        should.not.exist(options.Expected)
-        should.not.exist(options.ReturnConsumedCapacity)
-        should.not.exist(options.ReturnItemCollectionMetrics)
-        process.nextTick(cb.bind(null, null, {Attributes: {lastId: {N: '1'}}}))
-      }
-    }
+    var table, client = mockClient({Attributes: {lastId: {N: '1'}}})
     table = dynamoTable('name', {client: client})
     table.nextId(function(err, newVal) {
       if (err) return done(err)
+      client.target.should.equal('UpdateItem')
+      client.options.TableName.should.equal('name')
+      client.options.Key.should.eql({id: {S: '0'}})
+      client.options.AttributeUpdates.should.eql({lastId: {Action: 'ADD', Value: {N: '1'}}})
+      client.options.ReturnValues.should.equal('UPDATED_NEW')
+      should.not.exist(client.options.Expected)
+      should.not.exist(client.options.ReturnConsumedCapacity)
+      should.not.exist(client.options.ReturnItemCollectionMetrics)
       newVal.should.equal(1)
       done()
     })
   })
 
   it('should use specified key types', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        options.Key.should.eql({id: {B: '0000'}, name: {S: '0'}})
-        options.AttributeUpdates.should.eql({lastId: {Action: 'ADD', Value: {N: '1'}}})
-        process.nextTick(cb.bind(null, null, {Attributes: {lastId: {N: '1'}}}))
-      }
-    }
+    var table, client = mockClient({Attributes: {lastId: {N: '1'}}})
     table = dynamoTable('name', {client: client, key: ['id', 'name'], mappings: {id: 'B', name: 'S'}})
-    table.nextId(done)
+    table.nextId(function(err, newVal) {
+      if (err) return done(err)
+      client.options.Key.should.eql({id: {B: '0000'}, name: {S: '0'}})
+      client.options.AttributeUpdates.should.eql({lastId: {Action: 'ADD', Value: {N: '1'}}})
+      newVal.should.equal(1)
+      done()
+    })
   })
 })
 
@@ -1349,31 +1319,29 @@ describe('nextId', function() {
 describe('initId', function() {
 
   it('should call with default options', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        target.should.equal('UpdateItem')
-        options.TableName.should.equal('name')
-        options.Key.should.eql({id: {S: '0'}})
-        options.AttributeUpdates.should.eql({lastId: {Value: {N: '0'}}})
-        should.not.exist(options.Expected)
-        should.not.exist(options.ReturnConsumedCapacity)
-        should.not.exist(options.ReturnItemCollectionMetrics)
-        should.not.exist(options.ReturnValues)
-        process.nextTick(cb)
-      }
-    }
+    var table, client = mockClient()
     table = dynamoTable('name', {client: client})
-    table.initId(done)
+    table.initId(function(err) {
+      if (err) return done(err)
+      client.target.should.equal('UpdateItem')
+      client.options.TableName.should.equal('name')
+      client.options.Key.should.eql({id: {S: '0'}})
+      client.options.AttributeUpdates.should.eql({lastId: {Value: {N: '0'}}})
+      should.not.exist(client.options.Expected)
+      should.not.exist(client.options.ReturnConsumedCapacity)
+      should.not.exist(client.options.ReturnItemCollectionMetrics)
+      should.not.exist(client.options.ReturnValues)
+      done()
+    })
   })
 
   it('should use explicit value if passed in', function(done) {
-    var table, client = {
-      request: function(target, options, cb) {
-        options.AttributeUpdates.should.eql({lastId: {Value: {N: '100'}}})
-        process.nextTick(cb)
-      }
-    }
+    var table, client = mockClient()
     table = dynamoTable('name', {client: client})
-    table.initId(100, done)
+    table.initId(100, function(err) {
+      if (err) return done(err)
+      client.options.AttributeUpdates.should.eql({lastId: {Value: {N: '100'}}})
+      done()
+    })
   })
 })

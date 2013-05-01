@@ -26,6 +26,9 @@ function DynamoTable(name, options) {
   if (!Array.isArray(this.key)) this.key = [this.key]
   if (!this.key.length) this.key = ['id']
   this.keyTypes = options.keyTypes || {}
+  this.readCapacity = options.readCapacity
+  this.writeCapacity = options.writeCapacity
+  this.indexes = options.indexes
   this.preFrom = options.preFrom || function(dbItem) { return dbItem != null ? {} : null }
   this.postFrom = options.postFrom || function(jsObj) { return jsObj }
   this.preTo = options.preTo || function(jsObj) { return jsObj != null ? {} : null }
@@ -387,16 +390,16 @@ DynamoTable.prototype.batchWrite = function(operations, tables, cb) {
       requests = [],
       allOperations, i, j, requestItems, operation
 
-  if (operations && operations.length)
+  if (operations && Object.keys(operations).length)
     tables.unshift({table: this, operations: operations})
 
   allOperations = tables.map(function(tableObj) {
     var table = tableObj.table, operations = tableObj.operations || [], ops
     if (Array.isArray(operations)) operations = {puts: operations, deletes: []}
-    ops = operations.puts.map(function(jsObj) {
+    ops = (operations.puts || []).map(function(jsObj) {
       return {PutRequest: {Item: table.mapToDb(jsObj)}, _table: table.name}
     })
-    return ops.concat(operations.deletes.map(function(key) {
+    return ops.concat((operations.deletes || []).map(function(key) {
       return {DeleteRequest: {Key: table.resolveKey(key)}, _table: table.name}
     }))
   })
@@ -434,9 +437,9 @@ DynamoTable.prototype.batchWrite = function(operations, tables, cb) {
 
 DynamoTable.prototype.createTable = function(readCapacity, writeCapacity, indexes, options, cb) {
   if (!cb) { cb = options; options = {} }
-  if (!cb) { cb = indexes; indexes = null }
-  if (!cb) { cb = writeCapacity; writeCapacity = 1 }
-  if (!cb) { cb = readCapacity; readCapacity = 1 }
+  if (!cb) { cb = indexes; indexes = this.indexes }
+  if (!cb) { cb = writeCapacity; writeCapacity = this.writeCapacity || 1 }
+  if (!cb) { cb = readCapacity; readCapacity = this.readCapacity || 1 }
   if (typeof cb !== 'function') throw new Error('Last parameter must be a callback function')
   options.TableName = options.TableName || this.name
   var self = this,
@@ -463,6 +466,7 @@ DynamoTable.prototype.createTable = function(readCapacity, writeCapacity, indexe
       })
       if (index.key[0] != self.key[0])
         index.key.unshift(self.key[0])
+      index.projection = index.projection || 'ALL'
 
       lsi = {
         IndexName: name,
@@ -487,7 +491,10 @@ DynamoTable.prototype.createTable = function(readCapacity, writeCapacity, indexe
     ReadCapacityUnits: readCapacity,
     WriteCapacityUnits: writeCapacity,
   }
-  this.client.request('CreateTable', options, cb)
+  this.client.request('CreateTable', options, function(err, data) {
+    if (err) return cb(err)
+    cb(null, data.TableDescription)
+  })
 }
 
 DynamoTable.prototype.describeTable = function(options, cb) {
@@ -510,7 +517,10 @@ DynamoTable.prototype.updateTable = function(readCapacity, writeCapacity, option
     ReadCapacityUnits: readCapacity,
     WriteCapacityUnits: writeCapacity,
   }
-  this.client.request('UpdateTable', options, cb)
+  this.client.request('UpdateTable', options, function(err, data) {
+    if (err) return cb(err)
+    cb(null, data.TableDescription)
+  })
 }
 
 DynamoTable.prototype.deleteTable = function(options, cb) {
@@ -518,7 +528,10 @@ DynamoTable.prototype.deleteTable = function(options, cb) {
   if (typeof cb !== 'function') throw new Error('Last parameter must be a callback function')
   options.TableName = options.TableName || this.name
 
-  this.client.request('DeleteTable', options, cb)
+  this.client.request('DeleteTable', options, function(err, data) {
+    if (err) return cb(err)
+    cb(null, data.TableDescription)
+  })
 }
 
 // TODO: Support ExclusiveStartTableName/LastEvaluatedTableName

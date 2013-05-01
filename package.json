@@ -4,7 +4,8 @@
   "description": "Maps JS objects and queries to DynamoDB tables",
   "main": "index.js",
   "scripts": {
-    "test": "mocha"
+    "test": "mocha",
+    "integration": "mocha -t 100s integration"
   },
   "repository": {
     "type": "git",
