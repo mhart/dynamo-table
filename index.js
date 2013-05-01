@@ -317,7 +317,7 @@ DynamoTable.prototype.scan = function(conditions, options, cb) {
         conditions[attr] = {'!=': self._defaultValue(attr)}
     })
   }
-  if (conditions != null) options.ScanFilter = options.ScanFilter || this.conditions(conditions)
+  if (conditions != null && !options.ScanFilter) options.ScanFilter = this.conditions(conditions)
   this._listRequest('Scan', options, cb)
 }
 

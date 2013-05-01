@@ -761,6 +761,42 @@ describe('batchGet', function() {
       done()
     })
   })
+
+  it('should call multiple times if over limit', function(done) {
+    var table, call = 0, keys, i, client = {
+      request: function(target, options, cb) {
+        switch (call++) {
+          case 0:
+            options.RequestItems.name.Keys.length.should.equal(100)
+            options.RequestItems.name.Keys[0].should.eql({id: {N: '1'}})
+            return process.nextTick(cb.bind(null, null, {Responses: {name: {
+              Items: options.RequestItems.name.Keys.map(function(key) { return {id: {N: key.toString()}} })
+            }}}))
+          case 1:
+            options.RequestItems.name.Keys.length.should.equal(100)
+            options.RequestItems.name.Keys[0].should.eql({id: {N: '101'}})
+            return process.nextTick(cb.bind(null, null, {Responses: {name: {
+              Items: options.RequestItems.name.Keys.map(function(key) { return {id: {N: key.toString()}} })
+            }}}))
+          case 2:
+            options.RequestItems.should.eql({name: {Keys: [{id: {N: '201'}}]}})
+            return process.nextTick(cb.bind(null, null, {Responses: {name: {
+              Items: options.RequestItems.name.Keys.map(function(key) { return {id: {N: key.toString()}} })
+            }}}))
+        }
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    keys = new Array(201)
+    for (i = 0; i < keys.length; i++)
+      keys[i] = i + 1
+    table.batchGet(keys, function(err, items) {
+      if (err) return done(err)
+      call.should.equal(3)
+      items.length.should.equal(201)
+      done()
+    })
+  })
 })
 
 
@@ -860,6 +896,35 @@ describe('batchWrite', function() {
     }
     table = dynamoTable('name', {client: client})
     table.batchWrite([{id: 1, n: 'a'}, {id: 2, n: 'b'}, {id: 3, n: 'c'}], function(err) {
+      if (err) return done(err)
+      call.should.equal(3)
+      done()
+    })
+  })
+
+  it('should call multiple times if over limit', function(done) {
+    var table, call = 0, puts, i, client = {
+      request: function(target, options, cb) {
+        switch (call++) {
+          case 0:
+            options.RequestItems.name.length.should.equal(25)
+            options.RequestItems.name[0].should.eql({PutRequest: {Item: {id: {N: '1'}, n: {S: 'a0'}}}})
+            return process.nextTick(cb.bind(null, null, {}))
+          case 1:
+            options.RequestItems.name.length.should.equal(25)
+            options.RequestItems.name[0].should.eql({PutRequest: {Item: {id: {N: '26'}, n: {S: 'a25'}}}})
+            return process.nextTick(cb.bind(null, null, {}))
+          case 2:
+            options.RequestItems.should.eql({name: [{PutRequest: {Item: {id: {N: '51'}, n: {S: 'a50'}}}}]})
+            return process.nextTick(cb.bind(null, null, {}))
+        }
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    puts = new Array(51)
+    for (i = 0; i < puts.length; i++)
+      puts[i] = {id: i + 1, n: 'a' + i}
+    table.batchWrite(puts, function(err) {
       if (err) return done(err)
       call.should.equal(3)
       done()
