@@ -18,7 +18,7 @@ function DynamoTable(name, options) {
   this.client = options.client
   if (!this.client) {
     if (!dynamo) throw new Error('dynamo-client module is not installed')
-    this.client = dynamo.createClient(options.region)
+    this.client = dynamo.createClient(options.region, options.credentials)
   }
   this.mappings = options.mappings || {}
   this.key = options.key || Object.keys(options.keyTypes || this.mappings).slice(0, 2)

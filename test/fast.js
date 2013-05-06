@@ -3,8 +3,9 @@ var should = require('should'),
 
 // ensure env variables have content to keep dynamo-client happy
 before(function() {
-  process.env.AWS_SECRET_ACCESS_KEY = 'a'
-  process.env.AWS_ACCESS_KEY_ID = 'a'
+  var env = process.env
+  if (!env.AWS_ACCESS_KEY_ID || !env.AWS_SECRET_ACCESS_KEY)
+    env.AWS_ACCESS_KEY_ID = env.AWS_SECRET_ACCESS_KEY = 'a'
 })
 
 
