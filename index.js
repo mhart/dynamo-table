@@ -537,6 +537,39 @@ DynamoTable.prototype.listTables = function(options, cb) {
   })
 }
 
+DynamoTable.prototype.deleteAndWait = function(cb) {
+  var self = this
+  this.describeTable(function(err, data) {
+    if (err && err.name === 'ResourceNotFoundException') return cb()
+    if (err) return cb(err)
+
+    if (data.TableStatus !== 'ACTIVE') return setTimeout(self.deleteAndWait.bind(self, cb), 1000)
+
+    self.deleteTable(function(err) {
+      if (err) return cb(err)
+      self.deleteAndWait(cb)
+    })
+  })
+}
+
+DynamoTable.prototype.createAndWait = function(cb) {
+  var self = this
+  this.describeTable(function(err, data) {
+    if (err && err.name === 'ResourceNotFoundException') {
+      return self.createTable(function(err) {
+        if (err) return cb(err)
+        self.createAndWait(cb)
+      })
+    }
+    if (err) return cb(err)
+
+    if (data.TableStatus === 'ACTIVE') return cb()
+    if (data.TableStatus !== 'CREATING') return cb(new Error(data.TableStatus))
+
+    setTimeout(self.createAndWait.bind(self, cb), 1000)
+  })
+}
+
 DynamoTable.prototype.increment = function(key, attr, incrAmt, options, cb) {
   var self = this, actions
   if (!cb) { cb = options; options = {} }

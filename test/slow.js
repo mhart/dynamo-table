@@ -8,37 +8,6 @@ var should = require('should'),
 
 describe('integration', function() {
 
-  function deleteAndWait(cb) {
-    table.describeTable(function(err, data) {
-      if (err && err.name === 'ResourceNotFoundException') return cb()
-      if (err) return cb(err)
-
-      if (data.TableStatus !== 'ACTIVE') return setTimeout(deleteAndWait, 1000, cb)
-
-      table.deleteTable(function(err) {
-        if (err) return cb(err)
-        deleteAndWait(cb)
-      })
-    })
-  }
-
-  function createAndWait(cb) {
-    table.describeTable(function(err, data) {
-      if (err && err.name === 'ResourceNotFoundException') {
-        return table.createTable(function(err) {
-          if (err) return cb(err)
-          createAndWait(cb)
-        })
-      }
-      if (err) return cb(err)
-
-      if (data.TableStatus === 'ACTIVE') return cb()
-      if (data.TableStatus !== 'CREATING') return cb(new Error(data.TableStatus))
-
-      setTimeout(createAndWait, 1000, cb)
-    })
-  }
-
   before(function(done) {
     var setup = function(cb) { cb() }
 
@@ -56,12 +25,12 @@ describe('integration', function() {
 
     setup(function(err) {
       if (err) return done(err)
-      async.series([deleteAndWait, createAndWait], done)
+      async.series([table.deleteAndWait.bind(table), table.createAndWait.bind(table)], done)
     })
   })
 
   after(function (done) {
-    deleteAndWait(done)
+    table.deleteAndWait(done)
   })
 
   beforeEach(function(done) {
