@@ -101,14 +101,6 @@ Corresponds to [ListTables](http://docs.aws.amazon.com/amazondynamodb/latest/API
 
 Helper to increment an attribute by a certain amount
 
-### nextId([incrAmt], [options], callback)
-
-Helper to retrieve a new ID by using a counter in the table
-
-### initId([val], [options], callback)
-
-Helper to initialise the ID counter
-
 ### mapToDb(jsObj)
 
 Maps a JavaScript object to a DynamoDB-friendly object

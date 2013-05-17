@@ -140,14 +140,15 @@ describe('integration', function() {
     })
   })
 
-  describe('nextId', function() {
+  describe('increment', function() {
+    var key = {forumName: '0', subject: '0'}
 
     beforeEach(function(done) {
-      table.initId(done)
+      table.update(key, {put: {lastId: 0}}, done)
     })
 
     it('should increment from scratch', function(done) {
-      table.nextId(function(err, newVal) {
+      table.increment(key, 'lastId', function(err, newVal) {
         if (err) return done(err)
         newVal.should.equal(1)
         done()
@@ -157,7 +158,7 @@ describe('integration', function() {
     it('should increment multiple times in series', function(done) {
       var calls = [], i
       for (i = 0; i < 5; i++)
-        calls.push(table.nextId.bind(table))
+        calls.push(table.increment.bind(table, key, 'lastId'))
       async.series(calls, function(err, results) {
         if (err) return done(err)
         results[4].should.equal(5)
@@ -168,7 +169,7 @@ describe('integration', function() {
     it('should increment multiple times in parallel', function(done) {
       var calls = [], i
       for (i = 0; i < 20; i++)
-        calls.push(table.nextId.bind(table))
+        calls.push(table.increment.bind(table, key, 'lastId'))
       async.parallel(calls, function(err, results) {
         if (err) return done(err)
         for (i = 1; i <= 20; i++)

@@ -32,7 +32,6 @@ function DynamoTable(name, options) {
   this.postMapFromDb = options.postMapFromDb
   this.preMapToDb = options.preMapToDb
   this.postMapToDb = options.postMapToDb
-  this.useNextId = options.useNextId
 }
 
 DynamoTable.prototype.mapAttrToDb = function(val, key, jsObj) {
@@ -170,14 +169,6 @@ DynamoTable.prototype._isEmpty = function(attr) {
     attr.SS === '[]' || attr.NS === '[]' || attr.BS === '[]'
 }
 
-DynamoTable.prototype._defaultValue = function(attr) {
-  switch (this._getKeyType(attr)) {
-    case 'S': return '0'
-    case 'N': return 0
-    case 'B': return new Buffer('0000', 'base64')
-  }
-}
-
 DynamoTable.prototype._getKeyType = function(attr) {
   var type = this.keyTypes[attr] || this.mappings[attr] || 'S'
   switch (type) {
@@ -310,16 +301,7 @@ DynamoTable.prototype.scan = function(conditions, options, cb) {
   if (!cb) { cb = conditions; conditions = null }
   if (typeof cb !== 'function') throw new Error('Last parameter must be a callback function')
   options = this._getDefaultOptions(options)
-  var self = this
 
-  // filter out the default key
-  if (this.useNextId) {
-    if (conditions == null) conditions = {}
-    this.key.forEach(function(attr) {
-      if (typeof conditions[attr] === 'undefined')
-        conditions[attr] = {'!=': self._defaultValue(attr)}
-    })
-  }
   if (conditions != null && !options.ScanFilter) options.ScanFilter = this.conditions(conditions)
   this._listRequest('Scan', options, cb)
 }
@@ -589,24 +571,6 @@ DynamoTable.prototype.increment = function(key, attr, incrAmt, options, cb) {
     if (newVal == null) return cb()
     cb(null, self.mapAttrFromDb(newVal, attr))
   })
-}
-
-DynamoTable.prototype.nextId = function(incrAmt, options, cb) {
-  if (!cb) { cb = options; options = {} }
-  if (!cb) { cb = incrAmt; incrAmt = 1 }
-  if (typeof cb !== 'function') throw new Error('Last parameter must be a callback function')
-
-  var key = this.key.map(this._defaultValue.bind(this))
-  this.increment(key, 'lastId', incrAmt, options, cb)
-}
-
-DynamoTable.prototype.initId = function(val, options, cb) {
-  if (!cb) { cb = options; options = {} }
-  if (!cb) { cb = val; val = 0 }
-  if (typeof cb !== 'function') throw new Error('Last parameter must be a callback function')
-
-  var key = this.key.map(this._defaultValue.bind(this))
-  this.update(key, {put: {lastId: val}}, options, cb)
 }
 
 DynamoTable.prototype._listRequest = function(operation, items, options, cb) {
