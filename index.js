@@ -28,10 +28,10 @@ function DynamoTable(name, options) {
   this.readCapacity = options.readCapacity
   this.writeCapacity = options.writeCapacity
   this.indexes = options.indexes
-  this.preMapFromDb = options.preMapFromDb || function(dbItem) { return dbItem }
-  this.postMapFromDb = options.postMapFromDb || function(jsObj) { return jsObj }
-  this.preMapToDb = options.preMapToDb || function(jsObj) { return jsObj }
-  this.postMapToDb = options.postMapToDb || function(dbItem) { return dbItem }
+  this.preMapFromDb = options.preMapFromDb
+  this.postMapFromDb = options.postMapFromDb
+  this.preMapToDb = options.preMapToDb
+  this.postMapToDb = options.postMapToDb
   this.useNextId = options.useNextId
 }
 
@@ -115,7 +115,7 @@ DynamoTable.prototype.mapAttrFromDb = function(val, key, dbItem) {
 }
 
 DynamoTable.prototype.mapToDb = function(jsObj) {
-  jsObj = this.preMapToDb(jsObj)
+  if (this.preMapToDb) jsObj = this.preMapToDb(jsObj)
   var self = this,
       dbItem = jsObj != null ? {} : null
 
@@ -126,11 +126,12 @@ DynamoTable.prototype.mapToDb = function(jsObj) {
         dbItem[key] = dbAttr
     })
   }
-  return this.postMapToDb(dbItem)
+  if (this.postMapToDb) dbItem = this.postMapToDb(dbItem)
+  return dbItem
 }
 
 DynamoTable.prototype.mapFromDb = function(dbItem) {
-  dbItem = this.preMapFromDb(dbItem)
+  if (this.preMapFromDb) dbItem = this.preMapFromDb(dbItem)
   var self = this,
       jsObj = dbItem != null ? {} : null
 
@@ -141,7 +142,8 @@ DynamoTable.prototype.mapFromDb = function(dbItem) {
         jsObj[key] = jsAttr
     })
   }
-  return this.postMapFromDb(jsObj)
+  if (this.postMapFromDb) jsObj = this.postMapFromDb(jsObj)
+  return jsObj
 }
 
 DynamoTable.prototype.resolveKey = function(key) {
