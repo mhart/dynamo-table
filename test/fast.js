@@ -660,6 +660,78 @@ describe('scan', function() {
       done()
     })
   })
+
+  it('should call multiple times if TotalSegments', function(done) {
+    var table, call = 0, client = {
+      request: function(target, options, cb) {
+        options.ScanFilter.should.eql({
+          id: {ComparisonOperator: 'EQ', AttributeValueList: [{N: '23'}]},
+          name: {ComparisonOperator: 'GT', AttributeValueList: [{S: 'a'}]},
+        })
+        options.TotalSegments.should.equal(3)
+        switch (call++) {
+          case 0:
+            options.Segment.should.equal(0)
+            return process.nextTick(function() {
+              cb(null, {Items: [{id: {N: '23'}, name: {S: 'b'}}]})
+            })
+          case 1:
+            options.Segment.should.equal(1)
+            return process.nextTick(function() {
+              cb(null, {Items: [{id: {N: '24'}, name: {S: 'c'}}]})
+            })
+          case 2:
+            options.Segment.should.equal(2)
+            return process.nextTick(function() {
+              cb(null, {Items: [{id: {N: '25'}, name: {S: 'd'}}]})
+            })
+        }
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.scan({id: 23, name: {'>': 'a'}}, {TotalSegments: 3}, function(err, items) {
+      if (err) return done(err)
+      call.should.equal(3)
+      items.should.eql([{id: 23, name: 'b'}, {id: 24, name: 'c'}, {id: 25, name: 'd'}])
+      done()
+    })
+  })
+
+  it('should call multiple times if this.scanSegments', function(done) {
+    var table, call = 0, client = {
+      request: function(target, options, cb) {
+        options.ScanFilter.should.eql({
+          id: {ComparisonOperator: 'EQ', AttributeValueList: [{N: '23'}]},
+          name: {ComparisonOperator: 'GT', AttributeValueList: [{S: 'a'}]},
+        })
+        options.TotalSegments.should.equal(3)
+        switch (call++) {
+          case 0:
+            options.Segment.should.equal(0)
+            return process.nextTick(function() {
+              cb(null, {Items: [{id: {N: '23'}, name: {S: 'b'}}]})
+            })
+          case 1:
+            options.Segment.should.equal(1)
+            return process.nextTick(function() {
+              cb(null, {Items: [{id: {N: '24'}, name: {S: 'c'}}]})
+            })
+          case 2:
+            options.Segment.should.equal(2)
+            return process.nextTick(function() {
+              cb(null, {Items: [{id: {N: '25'}, name: {S: 'd'}}]})
+            })
+        }
+      }
+    }
+    table = dynamoTable('name', {client: client, scanSegments: 3})
+    table.scan({id: 23, name: {'>': 'a'}}, function(err, items) {
+      if (err) return done(err)
+      call.should.equal(3)
+      items.should.eql([{id: 23, name: 'b'}, {id: 24, name: 'c'}, {id: 25, name: 'd'}])
+      done()
+    })
+  })
 })
 
 

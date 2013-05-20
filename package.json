@@ -21,7 +21,7 @@
     "should": "~1.2.2",
     "mocha": "~1.9.0",
     "async": "~0.2.7",
-    "fake-dynamo-gem": "~0.0.2"
+    "fake-dynamo-gem": "~0.0.3"
   },
   "optionalDependencies": {
     "dynamo-client": "~1.0.0"

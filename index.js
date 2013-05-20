@@ -28,6 +28,7 @@ function DynamoTable(name, options) {
   this.readCapacity = options.readCapacity
   this.writeCapacity = options.writeCapacity
   this.indexes = options.indexes
+  this.scanSegments = options.scanSegments
   this.preMapFromDb = options.preMapFromDb
   this.postMapFromDb = options.postMapFromDb
   this.preMapToDb = options.preMapToDb
@@ -301,9 +302,33 @@ DynamoTable.prototype.scan = function(conditions, options, cb) {
   if (!cb) { cb = conditions; conditions = null }
   if (typeof cb !== 'function') throw new Error('Last parameter must be a callback function')
   options = this._getDefaultOptions(options)
+  var totalSegments, segment, allItems
 
   if (conditions != null && !options.ScanFilter) options.ScanFilter = this.conditions(conditions)
-  this._listRequest('Scan', options, cb)
+  options.TotalSegments = options.TotalSegments || this.scanSegments
+
+  if (options.Segment == null && options.TotalSegments) {
+    totalSegments = options.TotalSegments
+    allItems = new Array(totalSegments)
+    for (segment = 0; segment < totalSegments; segment++)
+      this.scan(null, cloneWithSegment(options, segment), checkDone(segment))
+  } else {
+    this._listRequest('Scan', options, cb)
+  }
+  function cloneWithSegment(options, segment) {
+    return Object.keys(options).reduce(function(clone, key) {
+      clone[key] = options[key]
+      return clone
+    }, {Segment: segment})
+  }
+  function checkDone(segment) {
+    return function (err, items) {
+      if (err) return cb(err)
+      allItems[segment] = items
+      if (!--totalSegments)
+        cb(null, [].concat.apply([], allItems))
+    }
+  }
 }
 
 // http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html
@@ -315,8 +340,7 @@ DynamoTable.prototype.batchGet = function(keys, options, tables, cb) {
   var self = this,
       onlyThis = false,
       tablesByName = {},
-      merged = {},
-      allKeys, numRequests, i, j, key, requestItems, requestItem, opt
+      allKeys, numRequests, allResults, i, j, key, requestItems, requestItem, opt
 
   if (keys && keys.length) {
     tables.unshift({table: this, keys: keys, options: options})
@@ -338,6 +362,7 @@ DynamoTable.prototype.batchGet = function(keys, options, tables, cb) {
   })
   allKeys = [].concat.apply([], allKeys)
   numRequests = Math.ceil(allKeys.length / DynamoTable.MAX_GET)
+  allResults = new Array(numRequests)
 
   for (i = 0; i < allKeys.length; i += DynamoTable.MAX_GET) {
     requestItems = {}
@@ -351,7 +376,7 @@ DynamoTable.prototype.batchGet = function(keys, options, tables, cb) {
       delete key._table
       delete key._options
     }
-    batchRequest(requestItems, checkDone)
+    batchRequest(requestItems, checkDone(i / DynamoTable.MAX_GET))
   }
 
   function batchRequest(requestItems, results, cb) {
@@ -368,12 +393,19 @@ DynamoTable.prototype.batchGet = function(keys, options, tables, cb) {
     })
   }
 
-  function checkDone(err, results) {
-    if (err) return cb(err)
-    for (var name in results)
-      merged[name] = (merged[name] || []).concat(results[name])
-    if (!--numRequests)
-      cb(null, onlyThis ? merged[self.name] : merged)
+  function checkDone(ix) {
+    return function (err, results) {
+      if (err) return cb(err)
+      allResults[ix] = results
+      if (!--numRequests) {
+        var merged = {}
+        allResults.forEach(function(results) {
+          for (var name in results)
+            merged[name] = (merged[name] || []).concat(results[name])
+        })
+        cb(null, onlyThis ? merged[self.name] : merged)
+      }
+    }
   }
 }
 

@@ -110,6 +110,43 @@ describe('integration', function() {
     })
   })
 
+  describe('scan', function() {
+
+    it('should return matching items', function(done) {
+      var now = new Date
+      async.series([
+        table.put.bind(table, {forumName: 'a', subject: 'a', lastPostTime: now}),
+        table.put.bind(table, {forumName: 'a', subject: 'b', lastPostTime: now}),
+        table.put.bind(table, {forumName: 'a', subject: 'c', lastPostTime: now}),
+        table.scan.bind(table, {forumName: 'a', subject: {'>': 'a'}})
+      ], function(err, results) {
+        if (err) return done(err)
+        results[3].should.eql([
+          {forumName: 'a', subject: 'b', lastPostTime: now},
+          {forumName: 'a', subject: 'c', lastPostTime: now},
+        ])
+        done()
+      })
+    })
+
+    it('should return matching items with multiple segments', function(done) {
+      var now = new Date, now1 = new Date(+now + 1), now2 = new Date(+now + 2)
+      async.series([
+        table.put.bind(table, {forumName: 'a', subject: 'a', lastPostTime: now}),
+        table.put.bind(table, {forumName: 'a', subject: 'b', lastPostTime: now1}),
+        table.put.bind(table, {forumName: 'a', subject: 'c', lastPostTime: now2}),
+        table.scan.bind(table, {forumName: 'a', lastPostTime: {'>': now}}, {TotalSegments: 3})
+      ], function(err, results) {
+        if (err) return done(err)
+        results[3].should.eql([
+          {forumName: 'a', subject: 'b', lastPostTime: now1},
+          {forumName: 'a', subject: 'c', lastPostTime: now2},
+        ])
+        done()
+      })
+    })
+  })
+
   describe('listTables', function() {
     it('should return single table', function(done) {
       table.listTables(function(err, tables) {
