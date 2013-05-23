@@ -555,28 +555,35 @@ DynamoTable.prototype.listTables = function(options, cb) {
   })
 }
 
-DynamoTable.prototype.deleteAndWait = function(cb) {
+DynamoTable.prototype.deleteTableAndWait = function(options, cb) {
+  if (!cb) { cb = options; options = {} }
+  if (typeof cb !== 'function') throw new Error('Last parameter must be a callback function')
   var self = this
   this.describeTable(function(err, data) {
     if (err && err.name === 'ResourceNotFoundException') return cb()
     if (err) return cb(err)
 
-    if (data.TableStatus !== 'ACTIVE') return setTimeout(self.deleteAndWait.bind(self, cb), 1000)
+    if (data.TableStatus !== 'ACTIVE') return setTimeout(self.deleteTableAndWait.bind(self, options, cb), 1000)
 
-    self.deleteTable(function(err) {
+    self.deleteTable(options, function(err) {
       if (err) return cb(err)
-      self.deleteAndWait(cb)
+      self.deleteTableAndWait(options, cb)
     })
   })
 }
 
-DynamoTable.prototype.createAndWait = function(cb) {
+DynamoTable.prototype.createTableAndWait = function(readCapacity, writeCapacity, indexes, options, cb) {
+  if (!cb) { cb = options; options = {} }
+  if (!cb) { cb = indexes; indexes = this.indexes }
+  if (!cb) { cb = writeCapacity; writeCapacity = this.writeCapacity || 1 }
+  if (!cb) { cb = readCapacity; readCapacity = this.readCapacity || 1 }
+  if (typeof cb !== 'function') throw new Error('Last parameter must be a callback function')
   var self = this
   this.describeTable(function(err, data) {
     if (err && err.name === 'ResourceNotFoundException') {
-      return self.createTable(function(err) {
+      return self.createTable(readCapacity, writeCapacity, indexes, options, function(err) {
         if (err) return cb(err)
-        self.createAndWait(cb)
+        self.createTableAndWait(readCapacity, writeCapacity, indexes, options, cb)
       })
     }
     if (err) return cb(err)
@@ -584,7 +591,7 @@ DynamoTable.prototype.createAndWait = function(cb) {
     if (data.TableStatus === 'ACTIVE') return cb()
     if (data.TableStatus !== 'CREATING') return cb(new Error(data.TableStatus))
 
-    setTimeout(self.createAndWait.bind(self, cb), 1000)
+    setTimeout(self.createTableAndWait.bind(self, readCapacity, writeCapacity, indexes, options, cb), 1000)
   })
 }
 

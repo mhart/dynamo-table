@@ -25,12 +25,12 @@ describe('integration', function() {
 
     setup(function(err) {
       if (err) return done(err)
-      async.series([table.deleteAndWait.bind(table), table.createAndWait.bind(table)], done)
+      async.series([table.deleteTableAndWait.bind(table), table.createTableAndWait.bind(table)], done)
     })
   })
 
   after(function (done) {
-    table.deleteAndWait(done)
+    table.deleteTableAndWait(done)
   })
 
   beforeEach(function(done) {
