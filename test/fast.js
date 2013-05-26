@@ -739,7 +739,7 @@ describe('batchGet', function() {
 
   it('should call with default options', function(done) {
     var table, client = mockClient({Responses: {
-      name: {Items: [{id: {N: '1'}, n: {S: 'a'}}, {id: {N: '2'}, n: {S: 'b'}}, {id: {N: '3'}, n: {S: 'c'}}]}
+      name: [{id: {N: '1'}, n: {S: 'a'}}, {id: {N: '2'}, n: {S: 'b'}}, {id: {N: '3'}, n: {S: 'c'}}]
     }})
     table = dynamoTable('name', {client: client})
     table.batchGet([1, 2, 3], function(err, items) {
@@ -754,7 +754,7 @@ describe('batchGet', function() {
 
   it('should only return specified attributes', function(done) {
     var table, client = mockClient({Responses: {
-      name: {Items: [{id: {N: '1'}}, {id: {N: '2'}}, {id: {N: '3'}}]}
+      name: [{id: {N: '1'}}, {id: {N: '2'}}, {id: {N: '3'}}]
     }})
     table = dynamoTable('name', {client: client})
     table.batchGet([1, 2, 3], 'id', function(err, items) {
@@ -771,8 +771,8 @@ describe('batchGet', function() {
 
   it('should return multiple tables', function(done) {
     var table, table2, client = mockClient({Responses: {
-      table1: {Items: [{id: {N: '1'}}, {id: {N: '2'}}, {id: {N: '3'}}]},
-      table2: {Items: [{id: {N: '4'}, n: {S: 'a'}}, {id: {N: '5'}, n: {S: 'b'}}]},
+      table1: [{id: {N: '1'}}, {id: {N: '2'}}, {id: {N: '3'}}],
+      table2: [{id: {N: '4'}, n: {S: 'a'}}, {id: {N: '5'}, n: {S: 'b'}}],
     }})
     table = dynamoTable('table1', {client: client})
     table2 = dynamoTable('table2', {client: mockClient()})
@@ -804,7 +804,7 @@ describe('batchGet', function() {
             options.RequestItems.should.eql({name: {Keys: [{id: {N: '1'}}, {id: {N: '2'}}, {id: {N: '3'}}]}})
             return process.nextTick(function() {
               cb(null, {
-                Responses: {name: {Items: [{id: {N: '1'}, n: {S: 'a'}}]}},
+                Responses: {name: [{id: {N: '1'}, n: {S: 'a'}}]},
                 UnprocessedKeys: {name: {Keys: [{id: {N: '2'}}, {id: {N: '3'}}]}},
               })
             })
@@ -812,7 +812,7 @@ describe('batchGet', function() {
             options.RequestItems.should.eql({name: {Keys: [{id: {N: '2'}}, {id: {N: '3'}}]}})
             return process.nextTick(function() {
               cb(null, {
-                Responses: {name: {Items: [{id: {N: '2'}, n: {S: 'b'}}]}},
+                Responses: {name: [{id: {N: '2'}, n: {S: 'b'}}]},
                 UnprocessedKeys: {name: {Keys: [{id: {N: '3'}}]}},
               })
             })
@@ -820,7 +820,7 @@ describe('batchGet', function() {
             options.RequestItems.should.eql({name: {Keys: [{id: {N: '3'}}]}})
             return process.nextTick(function() {
               cb(null, {
-                Responses: {name: {Items: [{id: {N: '3'}, n: {S: 'c'}}]}},
+                Responses: {name: [{id: {N: '3'}, n: {S: 'c'}}]},
               })
             })
         }
@@ -842,20 +842,20 @@ describe('batchGet', function() {
           case 0:
             options.RequestItems.name.Keys.length.should.equal(100)
             options.RequestItems.name.Keys[0].should.eql({id: {N: '1'}})
-            return process.nextTick(cb.bind(null, null, {Responses: {name: {
-              Items: options.RequestItems.name.Keys.map(function(key) { return {id: {N: key.toString()}} })
-            }}}))
+            return process.nextTick(cb.bind(null, null, {Responses: {
+              name: options.RequestItems.name.Keys.map(function(key) { return {id: {N: key.toString()}} })
+            }}))
           case 1:
             options.RequestItems.name.Keys.length.should.equal(100)
             options.RequestItems.name.Keys[0].should.eql({id: {N: '101'}})
-            return process.nextTick(cb.bind(null, null, {Responses: {name: {
-              Items: options.RequestItems.name.Keys.map(function(key) { return {id: {N: key.toString()}} })
-            }}}))
+            return process.nextTick(cb.bind(null, null, {Responses: {
+              name: options.RequestItems.name.Keys.map(function(key) { return {id: {N: key.toString()}} })
+            }}))
           case 2:
             options.RequestItems.should.eql({name: {Keys: [{id: {N: '201'}}]}})
-            return process.nextTick(cb.bind(null, null, {Responses: {name: {
-              Items: options.RequestItems.name.Keys.map(function(key) { return {id: {N: key.toString()}} })
-            }}}))
+            return process.nextTick(cb.bind(null, null, {Responses: {
+              name: options.RequestItems.name.Keys.map(function(key) { return {id: {N: key.toString()}} })
+            }}))
         }
       }
     }

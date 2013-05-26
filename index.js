@@ -385,7 +385,7 @@ DynamoTable.prototype.batchGet = function(keys, options, tables, cb) {
       if (err) return cb(err)
       for (var name in data.Responses) {
         results[name] = (results[name] || []).concat(
-          data.Responses[name].Items.map(tablesByName[name].mapFromDb.bind(tablesByName[name])))
+          data.Responses[name].map(tablesByName[name].mapFromDb.bind(tablesByName[name])))
       }
       if (Object.keys(data.UnprocessedKeys || {}).length)
         return batchRequest(data.UnprocessedKeys, results, cb)
