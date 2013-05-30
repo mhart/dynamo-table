@@ -528,6 +528,46 @@ describe('update', function() {
       done()
     })
   })
+
+  it('should use whitelist if specified', function(done) {
+    var table, client = mockClient()
+    table = dynamoTable('name', {client: client})
+    table.update({id: 23, name: 'john', age: 24, address: null}, ['age', 'address'], function(err) {
+      if (err) return done(err)
+      client.options.Key.should.eql({id: {N: '23'}})
+      client.options.AttributeUpdates.should.eql({
+        age: {Value: {N: '24'}},
+        address: {Action: 'DELETE'},
+      })
+      done()
+    })
+  })
+
+  it('should use whitelist from string if specified', function(done) {
+    var table, client = mockClient()
+    table = dynamoTable('name', {client: client})
+    table.update({id: 23, name: 'john', age: 24, address: null}, 'age', function(err) {
+      if (err) return done(err)
+      client.options.Key.should.eql({id: {N: '23'}})
+      client.options.AttributeUpdates.should.eql({
+        age: {Value: {N: '24'}},
+      })
+      done()
+    })
+  })
+
+  it('should use whitelist to delete from string if specified', function(done) {
+    var table, client = mockClient()
+    table = dynamoTable('name', {client: client})
+    table.update({id: 23, name: 'john', age: 24, address: null}, 'address', function(err) {
+      if (err) return done(err)
+      client.options.Key.should.eql({id: {N: '23'}})
+      client.options.AttributeUpdates.should.eql({
+        address: {Action: 'DELETE'},
+      })
+      done()
+    })
+  })
 })
 
 

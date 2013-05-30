@@ -223,14 +223,18 @@ DynamoTable.prototype.update = function(key, actions, options, cb) {
   if (!cb) { cb = actions; actions = key; key = null }
   if (typeof cb !== 'function') throw new Error('Last parameter must be a callback function')
   options = this._getDefaultOptions(options)
-  var self = this,
-      attrUpdates
+  var self = this, pick, attrUpdates
+
+  // If actions is a string or array, then it's a whitelist for attributes to update
+  if (typeof actions === 'string') actions = [actions]
+  if (Array.isArray(actions)) { pick = actions; actions = key; key = null }
 
   // If key is null, assume actions has a full object to put so clone it (without keys)
   if (key == null) {
     key = this.key.map(function(attr) { return actions[attr] })
     actions = {put: Object.keys(actions).reduce(function(attrsObj, attr) {
-      if (!~self.key.indexOf(attr)) attrsObj[attr] = actions[attr]
+      if (!~self.key.indexOf(attr) && (!pick || ~pick.indexOf(attr)))
+        attrsObj[attr] = actions[attr]
       return attrsObj
     }, {})}
   }
