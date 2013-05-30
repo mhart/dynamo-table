@@ -603,6 +603,17 @@ describe('query', function() {
       done()
     })
   })
+
+  it('should return count if specified', function(done) {
+    var table, client = mockClient({Count: 15})
+    table = dynamoTable('name', {client: client})
+    table.query({id: 23}, {Select: 'COUNT'}, function(err, count) {
+      if (err) return done(err)
+      client.options.Select.should.equal('COUNT')
+      count.should.equal(15)
+      done()
+    })
+  })
 })
 
 
@@ -729,6 +740,17 @@ describe('scan', function() {
       if (err) return done(err)
       call.should.equal(3)
       items.should.eql([{id: 23, name: 'b'}, {id: 24, name: 'c'}, {id: 25, name: 'd'}])
+      done()
+    })
+  })
+
+  it('should return count if specified', function(done) {
+    var table, client = mockClient({Count: 15})
+    table = dynamoTable('name', {client: client})
+    table.scan(null, {Select: 'COUNT'}, function(err, count) {
+      if (err) return done(err)
+      client.options.Select.should.equal('COUNT')
+      count.should.equal(15)
       done()
     })
   })

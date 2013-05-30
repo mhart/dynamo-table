@@ -325,8 +325,11 @@ DynamoTable.prototype.scan = function(conditions, options, cb) {
     return function (err, items) {
       if (err) return cb(err)
       allItems[segment] = items
-      if (!--totalSegments)
+      if (!--totalSegments) {
+        if (options.Select === 'COUNT')
+          return cb(null, allItems.reduce(function(sum, count) { return sum + count }))
         cb(null, [].concat.apply([], allItems))
+      }
     }
   }
 }
@@ -619,7 +622,7 @@ DynamoTable.prototype._listRequest = function(operation, items, options, cb) {
 
   this.client.request(operation, options, function(err, data) {
     if (err) return cb(err)
-    if (options.Count) return cb(null, data.Count)
+    if (options.Select === 'COUNT') return cb(null, data.Count)
 
     items = items.concat(data.Items.map(function(item) { return self.mapFromDb(item) }))
     if (data.LastEvaluatedKey != null && (!options.Limit || options.Limit !== data.Count)) {
