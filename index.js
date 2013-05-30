@@ -232,9 +232,9 @@ DynamoTable.prototype.update = function(key, actions, options, cb) {
   // If key is null, assume actions has a full object to put so clone it (without keys)
   if (key == null) {
     key = this.key.map(function(attr) { return actions[attr] })
-    actions = {put: Object.keys(actions).reduce(function(attrsObj, attr) {
-      if (!~self.key.indexOf(attr) && (!pick || ~pick.indexOf(attr)))
-        attrsObj[attr] = actions[attr]
+    pick = pick || Object.keys(actions)
+    actions = {put: pick.reduce(function(attrsObj, attr) {
+      if (!~self.key.indexOf(attr)) attrsObj[attr] = actions[attr]
       return attrsObj
     }, {})}
   }
