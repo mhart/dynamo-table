@@ -744,7 +744,7 @@ describe('scan', function() {
     })
   })
 
-  it('should return count if specified', function(done) {
+  it('should return correct count if specified', function(done) {
     var table, client = mockClient({Count: 15})
     table = dynamoTable('name', {client: client})
     table.scan(null, {Select: 'COUNT'}, function(err, count) {
@@ -754,6 +754,37 @@ describe('scan', function() {
       done()
     })
   })
+
+  it('should return correct count if TotalSegments', function(done) {
+    var table, call = 0, client = {
+      request: function(target, options, cb) {
+        switch (call++) {
+          case 0:
+            options.Segment.should.equal(0)
+            return process.nextTick(function() {
+              cb(null, {Count: 1})
+            })
+          case 1:
+            options.Segment.should.equal(1)
+            return process.nextTick(function() {
+              cb(null, {Count: 2})
+            })
+          case 2:
+            options.Segment.should.equal(2)
+            return process.nextTick(function() {
+              cb(null, {Count: 3})
+            })
+        }
+      }
+    }
+    table = dynamoTable('name', {client: client})
+    table.scan({id: 23, name: {'>': 'a'}}, {TotalSegments: 3, Select: 'COUNT'}, function(err, count) {
+      if (err) return done(err)
+      count.should.equal(6)
+      done()
+    })
+  })
+
 })
 
 
