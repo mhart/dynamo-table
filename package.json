@@ -4,7 +4,15 @@
   "description": "Maps JS objects and queries to DynamoDB tables",
   "main": "index.js",
   "scripts": {
-    "test": "mocha -t 100s"
+    "test": "mocha -t 100s",
+    "coverage": "mocha --require blanket -R html-cov > coverage.html",
+    "istanbul": "istanbul cover ./node_modules/.bin/_mocha",
+    "blanket": {
+      "pattern": "dynamo-table/index.js",
+      "data-cover-flags": {
+        "branchTracking": true
+      }
+    }
   },
   "repository": {
     "type": "git",

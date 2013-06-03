@@ -39,14 +39,15 @@ DynamoTable.prototype.mapAttrToDb = function(val, key, jsObj) {
   var mapping = this.mappings[key]
   if (mapping) {
     if (typeof mapping.to === 'function') return mapping.to(val, key, jsObj)
+    if (typeof val === 'undefined') return
     if (mapping === 'json') return {S: JSON.stringify(val)}
     if (val == null || val === '') return
     switch (mapping) {
       case 'S': return {S: String(val)}
       case 'N': return {N: String(val)}
       case 'B': return {B: val.toString('base64')}
-      case 'SS': return {SS: typeof val[0] === 'string' ? val : val.map(function(x) { return String(x) })}
-      case 'NS': return {NS: val.map(function(x) { return String(x) })}
+      case 'SS': return {SS: typeof val[0] === 'string' ? val : val.map(String)}
+      case 'NS': return {NS: val.map(String)}
       case 'BS': return {BS: val.map(function(x) { return x.toString('base64') })}
       case 'bignum': return Array.isArray(val) ? {NS: val} : {N: val}
       case 'isodate': return {S: val.toISOString()}
@@ -69,7 +70,7 @@ DynamoTable.prototype.mapAttrToDb = function(val, key, jsObj) {
   if (Array.isArray(val)) {
     if (!val.length) return
     if (typeof val[0] === 'string') return {SS: val}
-    if (typeof val[0] === 'number') return {NS: val.map(function(x) { return String(x) })}
+    if (typeof val[0] === 'number') return {NS: val.map(String)}
     if (Buffer.isBuffer(val[0])) return {BS: val.map(function(x) { return x.toString('base64') })}
   }
   return {S: JSON.stringify(val)}
@@ -84,7 +85,7 @@ DynamoTable.prototype.mapAttrFromDb = function(val, key, dbItem) {
       case 'N': return +val.N
       case 'B': return new Buffer(val.B, 'base64')
       case 'SS': return val.SS
-      case 'NS': return val.NS.map(function(x) { return +x })
+      case 'NS': return val.NS.map(Number)
       case 'BS': return val.BS.map(function(x) { return new Buffer(x, 'base64') })
       case 'json': return JSON.parse(val.S)
       case 'bignum': return val.N != null ? val.N : val.NS
@@ -109,7 +110,7 @@ DynamoTable.prototype.mapAttrFromDb = function(val, key, dbItem) {
   if (val.N != null) return +val.N
   if (val.B != null) return new Buffer(val.B, 'base64')
   if (val.SS != null) return val.SS
-  if (val.NS != null) return val.NS.map(function(x) { return +x })
+  if (val.NS != null) return val.NS.map(Number)
   if (val.BS != null) return val.BS.map(function(x) { return new Buffer(x, 'base64') })
   throw new Error('Unknown DynamoDB type: ' + JSON.stringify(val))
 }
@@ -276,6 +277,8 @@ DynamoTable.prototype.update = function(key, actions, options, cb) {
       }
     })
   }
+
+  if (!Object.keys(attrUpdates).length) return process.nextTick(cb)
 
   this.client.request('UpdateItem', options, cb)
 }
@@ -629,7 +632,7 @@ DynamoTable.prototype._listRequest = function(operation, items, options, cb) {
     if (options.Select === 'COUNT') return cb(null, data.Count)
 
     items = items.concat(data.Items.map(function(item) { return self.mapFromDb(item) }))
-    if (data.LastEvaluatedKey != null && (!options.Limit || options.Limit !== data.Count)) {
+    if (data.LastEvaluatedKey != null && (!options.Limit || options.Limit !== (data.ScannedCount || data.Count))) {
       options.ExclusiveStartKey = data.LastEvaluatedKey
       return self._listRequest(operation, items, options, cb)
     }
