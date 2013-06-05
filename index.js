@@ -653,7 +653,7 @@ DynamoTable.prototype.condition = function(key, conditionExpr) {
       type = typeof conditionExpr,
       comparison, attrVals, cond
 
-  if (conditionExpr === null) {
+  if (conditionExpr == null) {
     comparison = 'NULL'
   } else if (conditionExpr === 'notNull' || conditionExpr === 'NOT_NULL') {
     comparison = 'NOT_NULL'
