@@ -32,6 +32,6 @@
     "fake-dynamo-gem": "~0.1.0"
   },
   "optionalDependencies": {
-    "dynamo-client": "~1.0.0"
+    "dynamo-client": "~1.1.0"
   }
 }
