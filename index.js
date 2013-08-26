@@ -39,7 +39,7 @@ DynamoTable.prototype.mapAttrToDb = function(val, key, jsObj) {
   var mapping = this.mappings[key]
   if (mapping) {
     if (typeof mapping.to === 'function') return mapping.to(val, key, jsObj)
-    if (typeof val === 'undefined') return
+    if (typeof val === 'undefined' || typeof val === 'function') return
     if (mapping === 'json') return {S: JSON.stringify(val)}
     if (val == null || val === '') return
     switch (mapping) {
@@ -112,7 +112,7 @@ DynamoTable.prototype.mapAttrFromDb = function(val, key, dbItem) {
   if (val.SS != null) return val.SS
   if (val.NS != null) return val.NS.map(Number)
   if (val.BS != null) return val.BS.map(function(x) { return new Buffer(x, 'base64') })
-  throw new Error('Unknown DynamoDB type: ' + JSON.stringify(val))
+  throw new Error('Unknown DynamoDB type for "' + key + '": ' + JSON.stringify(val))
 }
 
 DynamoTable.prototype.mapToDb = function(jsObj) {
