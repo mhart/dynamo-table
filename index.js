@@ -352,7 +352,7 @@ DynamoTable.prototype.batchGet = function(keys, options, tables, cb) {
       tablesByName = {},
       allKeys, numRequests, allResults, i, j, key, requestItems, requestItem, opt
 
-  if (keys && keys.length) {
+  if (Array.isArray(keys)) {
     tables.unshift({table: this, keys: keys, options: options})
     onlyThis = tables.length === 1
   }
@@ -373,6 +373,15 @@ DynamoTable.prototype.batchGet = function(keys, options, tables, cb) {
   allKeys = [].concat.apply([], allKeys)
   numRequests = Math.ceil(allKeys.length / DynamoTable.MAX_GET)
   allResults = new Array(numRequests)
+
+  // TODO: Not sure here... should we throw an error?
+  if (!numRequests) {
+    if (onlyThis) return cb(null, [])
+    return cb(null, tables.reduce(function(merged, table) {
+      merged[table.name] = []
+      return merged
+    }, {}))
+  }
 
   for (i = 0; i < allKeys.length; i += DynamoTable.MAX_GET) {
     requestItems = {}
