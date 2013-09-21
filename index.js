@@ -348,14 +348,12 @@ DynamoTable.prototype.batchGet = function(keys, options, tables, cb) {
   if (!cb) { cb = options; options = {} }
   if (typeof cb !== 'function') throw new Error('Last parameter must be a callback function')
   var self = this,
-      onlyThis = false,
+      onlyThis = !tables.length,
       tablesByName = {},
       allKeys, numRequests, allResults, i, j, key, requestItems, requestItem, opt
 
-  if (Array.isArray(keys)) {
-    tables.unshift({table: this, keys: keys, options: options})
-    onlyThis = tables.length === 1
-  }
+  if (Array.isArray(keys)) tables.unshift({table: this, keys: keys, options: options})
+
   allKeys = tables.map(function(tableObj) {
     var table = tableObj.table, keys = tableObj.keys, options = tableObj.options
     tablesByName[table.name] = table
