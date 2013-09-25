@@ -310,6 +310,31 @@ describe('mapFromDb', function() {
 })
 
 
+describe('mapToDb and then mapFromDb with defaults', function() {
+
+  // The only things that can't be handled are empty strings and null values
+  it('should have the same effect as JSON.stringify and then JSON.parse', function() {
+    var table = dynamoTable('name'), obj = {
+      a: 1,
+      b: 'a',
+      c: true,
+      d: ['a', 'b'],
+      e: [1, 2],
+      f: {a: {b: {c: 1}}},
+      g: /^abcdef$/,
+      h: new Date,
+      i: function(){},
+      j: undefined,
+      k: null,
+      l: '',
+    }, jsonObj = JSON.parse(JSON.stringify(obj))
+    delete jsonObj.k
+    delete jsonObj.l
+    table.mapFromDb(table.mapToDb(obj)).should.eql(jsonObj)
+  })
+})
+
+
 describe('resolveKey', function() {
 
   it('should resolve as "id" when no keys specified', function() {

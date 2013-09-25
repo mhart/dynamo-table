@@ -62,6 +62,7 @@ DynamoTable.prototype.mapAttrToDb = function(val, key, jsObj) {
     case 'string': return {S: val}
     case 'boolean': return {S: String(val)}
     case 'number': return {N: String(val)}
+    case 'function': return
   }
   if (Buffer.isBuffer(val)) {
     if (!val.length) return
@@ -73,9 +74,9 @@ DynamoTable.prototype.mapAttrToDb = function(val, key, jsObj) {
     if (typeof val[0] === 'number') return {NS: val.map(String)}
     if (Buffer.isBuffer(val[0])) return {BS: val.map(function(x) { return x.toString('base64') })}
   }
-  // Dates are mapped as they are in JSON: to string in, and stay as string out
-  if (val instanceof Date) return {S: val.toISOString()}
-  return {S: JSON.stringify(val)}
+  // Other types (inc dates) are mapped as they are in JSON
+  val = typeof val.toJSON === 'function' ? val.toJSON() : JSON.stringify(val)
+  if (val) return {S: val}
 }
 
 DynamoTable.prototype.mapAttrFromDb = function(val, key, dbItem) {
