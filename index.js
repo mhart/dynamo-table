@@ -156,6 +156,7 @@ DynamoTable.prototype.resolveKey = function(key) {
     key = [].slice.call(arguments)
   else if (typeof key !== 'object' || Buffer.isBuffer(key))
     key = [key]
+  if (!key) throw new Error('Key is empty: ' + key)
 
   if (Array.isArray(key)) {
     return key.reduce(function(dbKey, val, ix) {
@@ -365,13 +366,14 @@ DynamoTable.prototype.batchGet = function(keys, options, tables, cb) {
     else if (typeof options === 'string')
       options = {AttributesToGet: [options]}
     return keys.map(function(key) {
+      if (!key) return
       var dbKey = table.resolveKey(key)
       dbKey._table = table.name
       dbKey._options = options || {}
       return dbKey
     })
   })
-  allKeys = [].concat.apply([], allKeys)
+  allKeys = [].concat.apply([], allKeys).filter(function(key) { return key != null })
   numRequests = Math.ceil(allKeys.length / DynamoTable.MAX_GET)
   allResults = new Array(numRequests)
 
