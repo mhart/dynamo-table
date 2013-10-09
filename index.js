@@ -160,12 +160,16 @@ DynamoTable.prototype.resolveKey = function(key) {
 
   if (Array.isArray(key)) {
     return key.reduce(function(dbKey, val, ix) {
-      dbKey[self.key[ix]] = self.mapAttrToDb(val, self.key[ix])
+      var dbAttr = self.mapAttrToDb(val, self.key[ix])
+      if (self._isEmpty(dbAttr)) throw new Error('Key element "' + self.key[ix] + '" is empty: ' + JSON.stringify(val))
+      dbKey[self.key[ix]] = dbAttr
       return dbKey
     }, {})
   }
   return Object.keys(key).reduce(function(dbKey, attr) {
-    dbKey[attr] = self.mapAttrToDb(key[attr], attr)
+    var dbAttr = self.mapAttrToDb(key[attr], attr)
+    if (self._isEmpty(dbAttr)) throw new Error('Key element "' + attr + '" is empty: ' + JSON.stringify(key[attr]))
+    dbKey[attr] = dbAttr
     return dbKey
   }, {})
 }
@@ -663,7 +667,7 @@ DynamoTable.prototype.conditions = function(conditionExprObj) {
 DynamoTable.prototype.condition = function(key, conditionExpr) {
   var self = this,
       type = typeof conditionExpr,
-      comparison, attrVals, cond
+      comparison, attrVals, cond, hasEmpty = false
 
   if (conditionExpr == null) {
     comparison = 'NULL'
@@ -682,8 +686,18 @@ DynamoTable.prototype.condition = function(key, conditionExpr) {
     comparison = this.comparison(comparison)
   }
   cond = {ComparisonOperator: comparison}
-  if (attrVals != null)
-    cond.AttributeValueList = attrVals.map(function(val) { return self.mapAttrToDb(val, key) })
+  if (attrVals != null) {
+    cond.AttributeValueList = attrVals.map(function(val) {
+      var dbVal = self.mapAttrToDb(val, key)
+      if (self._isEmpty(dbVal)) hasEmpty = true
+      return dbVal
+    })
+    // Special case for when we have empty strings or nulls in our conditions
+    if (hasEmpty) {
+      delete cond.AttributeValueList
+      cond.ComparisonOperator = cond.ComparisonOperator === 'EQ' ? 'NULL' : 'NOT_NULL'
+    }
+  }
   return cond
 }
 
