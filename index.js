@@ -673,7 +673,7 @@ DynamoTable.prototype.condition = function(key, conditionExpr) {
     comparison = 'NULL'
   } else if (conditionExpr === 'notNull' || conditionExpr === 'NOT_NULL') {
     comparison = 'NOT_NULL'
-  } else if (type === 'string' || type === 'number' || Buffer.isBuffer(conditionExpr)) {
+  } else if (type === 'string' || type === 'number' || type === 'boolean' || Buffer.isBuffer(conditionExpr)) {
     comparison = 'EQ'
     attrVals = [conditionExpr]
   } else if (Array.isArray(conditionExpr)) {
