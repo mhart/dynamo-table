@@ -26,10 +26,10 @@
   "author": "Michael Hart <michael.hart.au@gmail.com> (http://github.com/mhart)",
   "license": "MIT",
   "devDependencies": {
-    "should": "~1.2.2",
-    "mocha": "~1.9.0",
-    "async": "~0.2.7",
-    "fake-dynamo-gem": "~0.1.0"
+    "should": "~2.0.2",
+    "mocha": "~1.13.0",
+    "async": "~0.2.9",
+    "dynalite": "~0.0.15"
   },
   "optionalDependencies": {
     "dynamo-client": "~1.1.0"

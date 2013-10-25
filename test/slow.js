@@ -1,6 +1,6 @@
 var should = require('should'),
     async = require('async'),
-    fakeDynamoGem = require('fake-dynamo-gem'),
+    dynalite = require('dynalite'),
     dynamoTable = require('..'),
     useLive = process.env.USE_LIVE_DYNAMO, // set this (and AWS credentials) if you want to test on a live instance
     region = process.env.AWS_REGION, // will just default to us-east-1 if not specified
@@ -13,7 +13,7 @@ describe('integration', function() {
 
     if (!useLive) {
       region = {host: 'localhost', port: 4567, credentials: {accessKeyId: 'a', secretAccessKey: 'a'}}
-      setup = fakeDynamoGem.bind(null, ['--db', '/tmp/' + Date.now() + '.fdb'])
+      setup = dynalite.listen.bind(dynalite, 4567)
     }
 
     table = dynamoTable('dynamo-client-integration-test', {
