@@ -5,14 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "mocha -t 100s",
-    "coverage": "mocha --require blanket -R html-cov > coverage.html",
-    "istanbul": "istanbul cover ./node_modules/.bin/_mocha",
-    "blanket": {
-      "pattern": "dynamo-table/index.js",
-      "data-cover-flags": {
-        "branchTracking": true
-      }
-    }
+    "coverage": "istanbul cover ./node_modules/.bin/_mocha -- -t 10s"
   },
   "repository": {
     "type": "git",
@@ -29,7 +22,8 @@
     "should": "~2.0.2",
     "mocha": "~1.13.0",
     "async": "~0.2.9",
-    "dynalite": "~0.0.15"
+    "dynalite": "~0.0.16",
+    "istanbul": "~0.1.44"
   },
   "optionalDependencies": {
     "dynamo-client": "~1.1.0"
