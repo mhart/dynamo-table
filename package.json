@@ -22,7 +22,7 @@
     "should": "~2.0.2",
     "mocha": "~1.13.0",
     "async": "~0.2.9",
-    "dynalite": "~0.0.16",
+    "dynalite": "~0.1.0",
     "istanbul": "~0.1.44"
   },
   "optionalDependencies": {
