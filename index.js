@@ -1,4 +1,4 @@
-var dynamo
+var dynamo, once = require('once')
 
 try {
   dynamo = require('dynamo-client')
@@ -316,6 +316,7 @@ DynamoTable.prototype.scan = function(conditions, options, cb) {
   if (!cb) { cb = options; options = {} }
   if (!cb) { cb = conditions; conditions = null }
   if (typeof cb !== 'function') throw new Error('Last parameter must be a callback function')
+  cb = once(cb)
   options = this._getDefaultOptions(options)
   var totalSegments, segment, allItems
 
@@ -355,6 +356,7 @@ DynamoTable.prototype.batchGet = function(keys, options, tables, cb) {
   if (!cb) { cb = tables; tables = [] }
   if (!cb) { cb = options; options = {} }
   if (typeof cb !== 'function') throw new Error('Last parameter must be a callback function')
+  cb = once(cb)
   var self = this,
       onlyThis = !tables.length,
       tablesByName = {},
@@ -440,6 +442,7 @@ DynamoTable.MAX_WRITE = 25
 DynamoTable.prototype.batchWrite = function(operations, tables, cb) {
   if (!cb) { cb = tables; tables = [] }
   if (typeof cb !== 'function') throw new Error('Last parameter must be a callback function')
+  cb = once(cb)
   var self = this,
       allOperations, numRequests, i, j, requestItems, operation
 

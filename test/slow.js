@@ -10,11 +10,12 @@ var should = require('should'),
 describe('integration', function() {
 
   before(function(done) {
-    var setup = function(cb) { cb() }
+    var setup = function(cb) { cb() }, port
 
     if (!useLive) {
-      region = {host: 'localhost', port: 4567, credentials: {accessKeyId: 'a', secretAccessKey: 'a'}}
-      setup = dynaliteServer.listen.bind(dynaliteServer, 4567)
+      port = 10000 + Math.round(Math.random() * 10000)
+      region = {host: 'localhost', port: port, credentials: {accessKeyId: 'a', secretAccessKey: 'a'}}
+      setup = dynaliteServer.listen.bind(dynaliteServer, port)
     }
 
     table = dynamoTable('dynamo-client-integration-test', {
