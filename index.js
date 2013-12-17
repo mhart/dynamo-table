@@ -546,7 +546,7 @@ DynamoTable.prototype.createTable = function(readCapacity, writeCapacity, localI
         gsi.Projection = {ProjectionType: 'INCLUDE', NonKeyAttributes: index.projection}
 
       attrMap[index.hashKey] = true
-      if (index.rangeKey) attrMap[index.hashKey] = true
+      if (index.rangeKey) attrMap[index.rangeKey] = true
 
       return gsi
     })
