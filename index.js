@@ -27,7 +27,8 @@ function DynamoTable(name, options) {
   this.keyTypes = options.keyTypes || {}
   this.readCapacity = options.readCapacity
   this.writeCapacity = options.writeCapacity
-  this.indexes = options.indexes
+  this.localIndexes = options.localIndexes || options.indexes
+  this.globalIndexes = options.globalIndexes
   this.scanSegments = options.scanSegments
   this.preMapFromDb = options.preMapFromDb
   this.postMapFromDb = options.postMapFromDb
@@ -302,10 +303,17 @@ DynamoTable.prototype.query = function(conditions, options, cb) {
     nonKeys = Object.keys(options.KeyConditions).filter(function(attr) { return !~self.key.indexOf(attr) })
     if (nonKeys.length) {
       // we have a non-key attribute, must find an IndexName
-      this.resolveIndexes(this.indexes).forEach(function(index) {
+      this.resolveLocalIndexes(this.localIndexes).forEach(function(index) {
         if (index.key === nonKeys[0])
           options.IndexName = index.name
       })
+      if (!options.IndexName) {
+        nonKeys = Object.keys(options.KeyConditions)
+        this.resolveGlobalIndexes(this.globalIndexes).forEach(function(index) {
+          if (index.hashKey === nonKeys[0] && (!nonKeys[1] || index.rangeKey === nonKeys[1]))
+            options.IndexName = index.name
+        })
+      }
       options.IndexName = options.IndexName || nonKeys[0]
     }
   }
@@ -489,9 +497,9 @@ DynamoTable.prototype.batchWrite = function(operations, tables, cb) {
   }
 }
 
-DynamoTable.prototype.createTable = function(readCapacity, writeCapacity, indexes, options, cb) {
+DynamoTable.prototype.createTable = function(readCapacity, writeCapacity, localIndexes, options, cb) {
   if (!cb) { cb = options; options = {} }
-  if (!cb) { cb = indexes; indexes = this.indexes }
+  if (!cb) { cb = localIndexes; localIndexes = this.localIndexes }
   if (!cb) { cb = writeCapacity; writeCapacity = this.writeCapacity || 1 }
   if (!cb) { cb = readCapacity; readCapacity = this.readCapacity || 1 }
   if (typeof cb !== 'function') throw new Error('Last parameter must be a callback function')
@@ -502,8 +510,8 @@ DynamoTable.prototype.createTable = function(readCapacity, writeCapacity, indexe
         return namesObj
       }, {})
 
-  if (indexes && !options.LocalSecondaryIndexes) {
-    options.LocalSecondaryIndexes = this.resolveIndexes(indexes).map(function(index) {
+  if (localIndexes && !options.LocalSecondaryIndexes) {
+    options.LocalSecondaryIndexes = this.resolveLocalIndexes(localIndexes).map(function(index) {
       var lsi = {
         IndexName: index.name,
         KeySchema: [self.key[0], index.key].map(function(attr, ix) {
@@ -518,6 +526,29 @@ DynamoTable.prototype.createTable = function(readCapacity, writeCapacity, indexe
       attrMap[index.key] = true
 
       return lsi
+    })
+  }
+  if (this.globalIndexes && !options.GlobalSecondaryIndexes) {
+    options.GlobalSecondaryIndexes = this.resolveGlobalIndexes(this.globalIndexes).map(function(index) {
+      var gsi = {
+        IndexName: index.name,
+        KeySchema: [index.hashKey, index.rangeKey].filter(function(attr) { return attr }).map(function(attr, ix) {
+          return { AttributeName: attr, KeyType: ix === 0 ? 'HASH' : 'RANGE' }
+        }),
+        ProvisionedThroughput: {
+          ReadCapacityUnits: index.readCapacity,
+          WriteCapacityUnits: index.writeCapacity,
+        }
+      }
+      if (typeof index.projection === 'string')
+        gsi.Projection = {ProjectionType: index.projection}
+      else if (Array.isArray(index.projection))
+        gsi.Projection = {ProjectionType: 'INCLUDE', NonKeyAttributes: index.projection}
+
+      attrMap[index.hashKey] = true
+      if (index.rangeKey) attrMap[index.hashKey] = true
+
+      return gsi
     })
   }
   options.KeySchema = options.KeySchema || this.key.map(function(attr, ix) {
@@ -601,18 +632,18 @@ DynamoTable.prototype.deleteTableAndWait = function(options, cb) {
   })
 }
 
-DynamoTable.prototype.createTableAndWait = function(readCapacity, writeCapacity, indexes, options, cb) {
+DynamoTable.prototype.createTableAndWait = function(readCapacity, writeCapacity, localIndexes, options, cb) {
   if (!cb) { cb = options; options = {} }
-  if (!cb) { cb = indexes; indexes = this.indexes }
+  if (!cb) { cb = localIndexes; localIndexes = this.localIndexes }
   if (!cb) { cb = writeCapacity; writeCapacity = this.writeCapacity || 1 }
   if (!cb) { cb = readCapacity; readCapacity = this.readCapacity || 1 }
   if (typeof cb !== 'function') throw new Error('Last parameter must be a callback function')
   var self = this
   this.describeTable(function(err, data) {
     if (err && err.name === 'ResourceNotFoundException') {
-      return self.createTable(readCapacity, writeCapacity, indexes, options, function(err) {
+      return self.createTable(readCapacity, writeCapacity, localIndexes, options, function(err) {
         if (err) return cb(err)
-        self.createTableAndWait(readCapacity, writeCapacity, indexes, options, cb)
+        self.createTableAndWait(readCapacity, writeCapacity, localIndexes, options, cb)
       })
     }
     if (err) return cb(err)
@@ -620,7 +651,7 @@ DynamoTable.prototype.createTableAndWait = function(readCapacity, writeCapacity,
     if (data.TableStatus === 'ACTIVE') return cb()
     if (data.TableStatus !== 'CREATING') return cb(new Error(data.TableStatus))
 
-    setTimeout(self.createTableAndWait.bind(self, readCapacity, writeCapacity, indexes, options, cb), 1000)
+    setTimeout(self.createTableAndWait.bind(self, readCapacity, writeCapacity, localIndexes, options, cb), 1000)
   })
 }
 
@@ -724,13 +755,13 @@ DynamoTable.prototype.comparison = function(comparison) {
   return comparison.toUpperCase()
 }
 
-// indexes:
+// local indexes:
 // [attr1/name1, attr2/name2]
 // {name: attr1}
 // {name: {key: attr1, projection: 'KEYS_ONLY'}}
 // {name: {key: attr1, projection: [attr1, attr2]}}
 // [{name: name1, key: attr1}, {name: name2, key: attr2}]
-DynamoTable.prototype.resolveIndexes = function(indexes) {
+DynamoTable.prototype.resolveLocalIndexes = function(indexes) {
   if (!indexes) return []
   if (!Array.isArray(indexes)) {
     indexes = Object.keys(indexes).map(function(name) {
@@ -742,6 +773,38 @@ DynamoTable.prototype.resolveIndexes = function(indexes) {
   return indexes.map(function(index) {
     if (typeof index === 'string') index = {name: index, key: index}
     index.projection = index.projection || 'ALL'
+    return index
+  })
+}
+
+// global indexes:
+// [attr1/name1, attr2/name2]
+// {name: attr1}
+// {name: {key: attr1, projection: 'KEYS_ONLY'}}
+// {name: {key: attr1, projection: [attr1, attr2]}}
+// [{name: name1, key: attr1}, {name: name2, key: attr2}]
+DynamoTable.prototype.resolveGlobalIndexes = function(indexes) {
+  if (!indexes) return []
+  if (!Array.isArray(indexes)) {
+    indexes = Object.keys(indexes).map(function(name) {
+      var index = indexes[name]
+      if (typeof index === 'string') index = {hashKey: index}
+      return {
+        name: name,
+        hashKey: index.hashKey,
+        rangeKey: index.rangeKey,
+        projection: index.projection,
+        readCapacity: index.readCapacity,
+        writeCapacity: index.writeCapacity,
+      }
+    })
+  }
+  return indexes.map(function(index) {
+    if (typeof index === 'string') index = {name: index}
+    index.hashKey = index.hashKey || index.name
+    index.projection = index.projection || 'ALL'
+    index.readCapacity = index.readCapacity || 1
+    index.writeCapacity = index.writeCapacity || 1
     return index
   })
 }

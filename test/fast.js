@@ -662,11 +662,40 @@ describe('query', function() {
 
   it('should find index to query', function(done) {
     var table, client = mockClient({Items: [{id: {S: 'a'}, name: {S: 'a'}, email: {S: 'c'}}]})
-    table = dynamoTable('name', {client: client, key: ['id', 'name'], indexes: {emailIx: 'email'}})
+    table = dynamoTable('name', {client: client, key: ['id', 'name'], localIndexes: {emailIx: 'email'}})
     table.query({id: 'a', email: {'>': 'b'}}, function(err, items) {
       if (err) return done(err)
       client.options.KeyConditions.should.eql({
         id: {ComparisonOperator: 'EQ', AttributeValueList: [{S: 'a'}]},
+        email: {ComparisonOperator: 'GT', AttributeValueList: [{S: 'b'}]},
+      })
+      client.options.IndexName.should.equal('emailIx')
+      items.should.eql([{id: 'a', name: 'a', email: 'c'}])
+      done()
+    })
+  })
+
+  it('should find global index to query with no range', function(done) {
+    var table, client = mockClient({Items: [{id: {S: 'a'}, name: {S: 'a'}, email: {S: 'c'}}]})
+    table = dynamoTable('name', {client: client, key: ['id', 'name'], globalIndexes: {emailIx: 'email'}})
+    table.query({email: 'c'}, function(err, items) {
+      if (err) return done(err)
+      client.options.KeyConditions.should.eql({
+        email: {ComparisonOperator: 'EQ', AttributeValueList: [{S: 'c'}]},
+      })
+      client.options.IndexName.should.equal('emailIx')
+      items.should.eql([{id: 'a', name: 'a', email: 'c'}])
+      done()
+    })
+  })
+
+  it('should find global index to query with range', function(done) {
+    var table, client = mockClient({Items: [{id: {S: 'a'}, name: {S: 'a'}, email: {S: 'c'}}]})
+    table = dynamoTable('name', {client: client, key: ['id', 'name'], globalIndexes: {emailIx: {hashKey: 'name', rangeKey: 'email'}}})
+    table.query({name: 'a', email: {'>': 'b'}}, function(err, items) {
+      if (err) return done(err)
+      client.options.KeyConditions.should.eql({
+        name: {ComparisonOperator: 'EQ', AttributeValueList: [{S: 'a'}]},
         email: {ComparisonOperator: 'GT', AttributeValueList: [{S: 'b'}]},
       })
       client.options.IndexName.should.equal('emailIx')
@@ -1421,7 +1450,7 @@ describe('createTable', function() {
 
   it('should use options from constructor if specified', function(done) {
     var table, client = mockClient({})
-    table = dynamoTable('name', {client: client, readCapacity: 10, writeCapacity: 20, indexes: ['email']})
+    table = dynamoTable('name', {client: client, readCapacity: 10, writeCapacity: 20, localIndexes: ['email']})
     table.createTable(function(err) {
       if (err) return done(err)
       client.options.ProvisionedThroughput.should.eql({ReadCapacityUnits: 10, WriteCapacityUnits: 20})
@@ -1437,6 +1466,53 @@ describe('createTable', function() {
             {AttributeName: 'email', KeyType: 'RANGE'},
           ],
           Projection: {ProjectionType: 'ALL'}
+        },
+      ])
+      done()
+    })
+  })
+
+  it('should create global indexes from object', function(done) {
+    var table, client = mockClient({})
+    table = dynamoTable('name', {client: client, readCapacity: 10, writeCapacity: 20, globalIndexes: {
+      userId: {readCapacity: 1, writeCapacity: 2},
+      ownerId: {rangeKey: 'userId', projection: 'KEYS_ONLY', readCapacity: 3, writeCapacity: 4},
+      childProject: {hashKey: 'childId', projection: ['a', 'b'], readCapacity: 5, writeCapacity: 6},
+    }})
+    table.createTable(function(err) {
+      if (err) return done(err)
+      client.options.ProvisionedThroughput.should.eql({ReadCapacityUnits: 10, WriteCapacityUnits: 20})
+      client.options.AttributeDefinitions.should.eql([
+        {AttributeName: 'id', AttributeType: 'S'},
+        {AttributeName: 'userId', AttributeType: 'S'},
+        {AttributeName: 'ownerId', AttributeType: 'S'},
+        {AttributeName: 'childId', AttributeType: 'S'},
+      ])
+      client.options.GlobalSecondaryIndexes.should.eql([
+        {
+          IndexName: 'userId',
+          KeySchema: [
+            {AttributeName: 'userId', KeyType: 'HASH'},
+          ],
+          Projection: {ProjectionType: 'ALL'},
+          ProvisionedThroughput: {ReadCapacityUnits: 1, WriteCapacityUnits: 2},
+        },
+        {
+          IndexName: 'ownerId',
+          KeySchema: [
+            {AttributeName: 'ownerId', KeyType: 'HASH'},
+            {AttributeName: 'userId', KeyType: 'RANGE'},
+          ],
+          Projection: {ProjectionType: 'KEYS_ONLY'},
+          ProvisionedThroughput: {ReadCapacityUnits: 3, WriteCapacityUnits: 4},
+        },
+        {
+          IndexName: 'childProject',
+          KeySchema: [
+            {AttributeName: 'childId', KeyType: 'HASH'},
+          ],
+          Projection: {ProjectionType: 'INCLUDE', NonKeyAttributes: ['a', 'b']},
+          ProvisionedThroughput: {ReadCapacityUnits: 5, WriteCapacityUnits: 6},
         },
       ])
       done()

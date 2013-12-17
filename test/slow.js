@@ -21,8 +21,9 @@ describe('integration', function() {
     table = dynamoTable('dynamo-client-integration-test', {
       region: region,
       key: ['forumName', 'subject'],
-      mappings: {forumName: 'S', subject: 'S', lastPostTime: 'isodate'},
-      indexes: {postIx: 'lastPostTime'},
+      mappings: {forumName: 'S', subject: 'S', lastPostTime: 'isodate', userId: 'N'},
+      localIndexes: {postIx: 'lastPostTime'},
+      globalIndexes: {userId: {rangeKey: 'lastPostTime'}},
     })
 
     setup(function(err) {
@@ -113,6 +114,25 @@ describe('integration', function() {
           {forumName: 'a', subject: 'c', lastPostTime: now2},
         ])
         results[4].should.equal(2)
+        done()
+      })
+    })
+
+    // Need to skip this until dynalite supports global indexes
+    it.skip('should return matching items on global index (and count)', function(done) {
+      var now = new Date, now1 = new Date(+now + 1), now2 = new Date(+now + 2)
+      async.series([
+        table.put.bind(table, {forumName: 'a', subject: 'a', lastPostTime: now, userId: 1}),
+        table.put.bind(table, {forumName: 'a', subject: 'b', lastPostTime: now1, userId: 1}),
+        table.put.bind(table, {forumName: 'a', subject: 'c', lastPostTime: now2, userId: 2}),
+        table.query.bind(table, {userId: 1, lastPostTime: {'>': now}}),
+        table.query.bind(table, {userId: 1, lastPostTime: {'>': now}}, {Select: 'COUNT'}),
+      ], function(err, results) {
+        if (err) return done(err)
+        results[3].should.eql([
+          {forumName: 'a', subject: 'b', lastPostTime: now1, userId: 1},
+        ])
+        results[4].should.equal(1)
         done()
       })
     })
