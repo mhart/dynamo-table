@@ -470,6 +470,9 @@ DynamoTable.prototype.batchWrite = function(operations, tables, cb) {
   allOperations = [].concat.apply([], allOperations)
   numRequests = Math.ceil(allOperations.length / DynamoTable.MAX_WRITE)
 
+  // TODO: Not sure here... should we throw an error?
+  if (!numRequests) return cb()
+
   for (i = 0; i < allOperations.length; i += DynamoTable.MAX_WRITE) {
     requestItems = {}
     for (j = i; j < i + DynamoTable.MAX_WRITE && j < allOperations.length; j++) {
