@@ -209,6 +209,24 @@ describe('integration', function() {
     })
   })
 
+  describe('updateTableAndWait', function() {
+    it('should update capacity and only return when capacity has been updated', function(done) {
+      table.updateTableAndWait(5, 5, function(err, info) {
+        if (err) {
+          if (err.name === 'ResourceInUseException' || err.name === 'LimitExceededException')
+            return done()
+          return done(err)
+        }
+        info.TableStatus.should.equal('ACTIVE')
+        table.describeTable(function(err, info) {
+          info.ProvisionedThroughput.ReadCapacityUnits.should.equal(5)
+          info.ProvisionedThroughput.WriteCapacityUnits.should.equal(5)
+          done()
+        })
+      })
+    })
+  })
+
   describe('increment', function() {
     var key = {forumName: '0', subject: '0'}
 
