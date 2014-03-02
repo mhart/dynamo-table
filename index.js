@@ -658,6 +658,36 @@ DynamoTable.prototype.createTableAndWait = function(readCapacity, writeCapacity,
   })
 }
 
+DynamoTable.prototype.updateTableAndWait = function(readCapacity, writeCapacity, options, cb) {
+  if (!cb) { cb = options; options = {} }
+  if (typeof cb !== 'function') throw new Error('Last parameter must be a callback function')
+  options.TableName = options.TableName || this.name
+  var self = this
+
+  self.updateTable(readCapacity, writeCapacity, options, function(err) {
+    if (err) return cb(err)
+
+    // check whether the update has in fact been applied
+    function checkTable(count) {
+      // Make sure we don't go into an infinite loop
+      if (++count > 1000) return cb(new Error('Wait limit exceeded'))
+
+      self.describeTable(function(err, data) {
+        if (err) return cb(err)
+        if (data.TableStatus !== 'ACTIVE') return setTimeout(checkTable, 1000, count)
+
+        // If the throughput has been provisoned then return
+        if (readCapacity && data.ProvisionedThroughput.ReadCapacityUnits === readCapacity &&
+            writeCapacity && data.ProvisionedThroughput.WriteCapacityUnits === writeCapacity) {
+          return cb(null, data)
+        }
+      })
+    }
+    checkTable(1)
+  })
+}
+
+
 DynamoTable.prototype.increment = function(key, attr, incrAmt, options, cb) {
   var self = this, actions
   if (!cb) { cb = options; options = {} }
