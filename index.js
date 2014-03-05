@@ -674,7 +674,10 @@ DynamoTable.prototype.updateTableAndWait = function(readCapacity, writeCapacity,
 
       self.describeTable(function(err, data) {
         if (err) return cb(err)
-        if (data.TableStatus !== 'ACTIVE') return setTimeout(checkTable, 1000, count)
+        if (data.TableStatus !== 'ACTIVE' || (data.GlobalSecondaryIndexes &&
+            !data.GlobalSecondaryIndexes.every(function (idx) {return idx.IndexStatus === 'ACTIVE'}))) {
+          return setTimeout(checkTable, 1000, count)
+        }
 
         // If the throughput has been provisoned then return
         if (readCapacity && data.ProvisionedThroughput.ReadCapacityUnits === readCapacity &&
