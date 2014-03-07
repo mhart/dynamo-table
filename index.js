@@ -586,9 +586,11 @@ DynamoTable.prototype.updateTable = function(readCapacity, writeCapacity, option
   if (typeof cb !== 'function') throw new Error('Last parameter must be a callback function')
   options.TableName = options.TableName || this.name
 
-  options.ProvisionedThroughput = options.ProvisionedThroughput || {
-    ReadCapacityUnits: readCapacity,
-    WriteCapacityUnits: writeCapacity,
+  if (readCapacity && writeCapacity) {
+    options.ProvisionedThroughput = options.ProvisionedThroughput || {
+      ReadCapacityUnits: readCapacity,
+      WriteCapacityUnits: writeCapacity,
+    }
   }
   this.client.request('UpdateTable', options, function(err, data) {
     if (err) return cb(err)
@@ -679,11 +681,8 @@ DynamoTable.prototype.updateTableAndWait = function(readCapacity, writeCapacity,
           return setTimeout(checkTable, 1000, count)
         }
 
-        // If the throughput has been provisoned then return
-        if (readCapacity && data.ProvisionedThroughput.ReadCapacityUnits === readCapacity &&
-            writeCapacity && data.ProvisionedThroughput.WriteCapacityUnits === writeCapacity) {
-          return cb(null, data)
-        }
+        // If the table is ACTIVE then return
+        cb(null, data)
       })
     }
     checkTable(1)
