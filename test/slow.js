@@ -207,11 +207,31 @@ describe('integration', function() {
         done()
       })
     })
+
+    it('should update capacity using options', function(done) {
+      options = {ProvisionedThroughput: {ReadCapacityUnits: 2, WriteCapacityUnits: 2}}
+      table.updateTable(null, null, options, function(err, info) {
+        if (err) {
+          if (err.name === 'ResourceInUseException' || err.name === 'LimitExceededException')
+            return done()
+          if (/requested value equals the current value/.test(err)) {
+            options = {ProvisionedThroughput: {ReadCapacityUnits: 1, WriteCapacityUnits: 1}}
+            return table.updateTable(null, null, options, function(err) {
+              if (err && err.name === 'LimitExceededException') err = null
+              done(err)
+            })
+          }
+          return done(err)
+        }
+        info.TableStatus.should.equal('UPDATING')
+        done()
+      })
+    })
   })
 
   describe('updateTableAndWait', function() {
     it('should update capacity and only return when capacity has been updated', function(done) {
-      table.updateTableAndWait(5, 5, function(err, info) {
+      table.updateTableAndWait(5, 6, function(err, info) {
         if (err) {
           if (err.name === 'ResourceInUseException' || err.name === 'LimitExceededException')
             return done()
@@ -220,11 +240,32 @@ describe('integration', function() {
         info.TableStatus.should.equal('ACTIVE')
         table.describeTable(function(err, info) {
           info.ProvisionedThroughput.ReadCapacityUnits.should.equal(5)
-          info.ProvisionedThroughput.WriteCapacityUnits.should.equal(5)
+          info.ProvisionedThroughput.WriteCapacityUnits.should.equal(6)
           done()
         })
       })
     })
+
+    it('should update global secondary indexes as well', function(done) {
+      options = {GlobalSecondaryIndexUpdates: [{Update: {IndexName: 'userId', ProvisionedThroughput:
+        {ReadCapacityUnits: 2, WriteCapacityUnits: 4}}}]}
+      table.updateTableAndWait(null, null, options, function(err, info) {
+        if (err) {
+          if (err.name === 'ResourceInUseException' || err.name === 'LimitExceededException')
+            return done()
+          return done(err)
+        }
+        info.TableStatus.should.equal('ACTIVE')
+        table.describeTable(function(err, info) {
+          info.GlobalSecondaryIndexes.length.should.equal(1)
+          info.GlobalSecondaryIndexes[0].IndexName.should.equal('userId')
+          info.GlobalSecondaryIndexes[0].ProvisionedThroughput.ReadCapacityUnits.should.equal(2)
+          info.GlobalSecondaryIndexes[0].ProvisionedThroughput.WriteCapacityUnits.should.equal(4)
+          done()
+        })
+      })
+    })
+
   })
 
   describe('increment', function() {
