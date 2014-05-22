@@ -39,7 +39,7 @@ function DynamoTable(name, options) {
 DynamoTable.prototype.mapAttrToDb = function(val, key, jsObj) {
   var mapping = this.mappings[key], numToStr = this._numToStr.bind(this, key)
   if (mapping) {
-    if (typeof mapping.to === 'function') return mapping.to(val, key, jsObj)
+    if (typeof mapping !== 'string' && typeof mapping.to === 'function') return mapping.to(val, key, jsObj)
     if (typeof val === 'undefined' || typeof val === 'function') return
     if (mapping === 'json') return {S: JSON.stringify(val)}
     if (val == null || val === '') return
