@@ -67,6 +67,17 @@ describe('mapAttrToDb', function() {
     table.mapAttrToDb(100, 'id').should.eql({S: '23'})
   })
 
+  it('should not use the mapping function for strings', function() {
+    String.prototype.to = function() { return 'failed'; };
+    var table = dynamoTable('name', {mappings: {id: 'S'} });
+
+    try {
+      table.mapAttrToDb('100', 'id').should.eql({S: '100'});
+    } finally {
+      delete String.prototype.to;
+    }
+  })
+
   it('should map explicit dynamodb types', function() {
     var table = dynamoTable('name', {mappings: {
       name: 'S',
@@ -1617,4 +1628,3 @@ describe('increment', function() {
     })
   })
 })
-
