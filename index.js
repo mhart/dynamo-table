@@ -721,7 +721,7 @@ DynamoTable.prototype._listRequest = function(operation, items, options, cb) {
       options.ExclusiveStartKey = data.LastEvaluatedKey
       return self._listRequest(operation, items, options, cb)
     }
-    cb(null, items)
+    cb(null, items, data.LastEvaluatedKey)
   })
 }
 
