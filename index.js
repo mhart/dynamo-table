@@ -258,7 +258,8 @@ DynamoTable.prototype.update = function(key, actions, options, cb) {
 
   if (actions.put != null) {
     Object.keys(actions.put).forEach(function(attr) {
-      attrUpdates[attr] = attrUpdates[attr] || {Value: self.mapAttrToDb(actions.put[attr], attr)}
+      attrUpdates[attr] = attrUpdates[attr] || 
+        {Action: 'PUT', Value: self.mapAttrToDb(actions.put[attr], attr)}
       if (self._isEmpty(attrUpdates[attr].Value)) {
         attrUpdates[attr].Action = 'DELETE' // "empty" attributes should actually be deleted
         delete attrUpdates[attr].Value
